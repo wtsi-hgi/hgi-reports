@@ -1,0 +1,20 @@
+%% latex template for weekly stats
+\documentclass{article}[10pt]
+
+\usepackage{graphicx}
+\usepackage[margin=4mm]{geometry}
+\usepackage{longtable}
+\begin{document}
+\section*{CPU Used since @!date!@ : Top @!N!@ Users}
+\begin{longtable}{|l|p{10mm}|p{10mm}|p{10mm}|p{10mm}|p{10mm}|p{15mm}|p{20mm}|}
+\hline
+Name & Cores / Weeks & Min. CPU Eff. & Avg. CPU Eff & Max. CPU Eff & Min. Mem Eff. & Avg. Mem Eff. & Max Mem Eff. \\
+\hline
+\hline
+<!--(for user in topN)-->
+\includegraphics[height=10mm]{@!user[9]!@} @!user[8]!@ (@!user[0]!@) & @!"%.2f" % float(user[1])!@ & @! "%.2f" % float(user[2])!@ & @! "%.2f" % float(user[3])!@ & @! "%.2f" % float(user[4])!@ & @! "%.2f" % float(user[5])!@ & @! "%.2f" % float(user[6])!@ & @! "%.2f" % float(user[7])!@ \\
+\hline
+<!--(end)-->
+\end{longtable}
+
+\end{document}
