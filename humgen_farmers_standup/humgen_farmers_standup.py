@@ -52,12 +52,14 @@ top_N_sql="""
 	select
 		user_name,
 		sum(cpu_time)/(60*60*24*7),
-		100.0*min(cpu_time/(ncores*run_time)),
-		100.0*avg(cpu_time/(ncores*run_time)),
-		100.0*max(cpu_time/(ncores*run_time)),
+		100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))),
+		100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))),
+		100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))),
 		100.0*min(job_mem_usage/ifnull(mem_req,100)),
 		100.0*avg(job_mem_usage/ifnull(mem_req,100)),
-		100.0*max(job_mem_usage/ifnull(mem_req,100))
+		100.0*max(job_mem_usage/ifnull(mem_req,100)),
+		count(*),
+		avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))
 	from rpt_jobmart_raw as r, isg_work_area_groups as g
 	where r.project_name=g.cname
 	and pname='humgen'
@@ -68,7 +70,7 @@ top_N_sql="""
 	and nprocs > 0
 	and ncores >0
 	and cpu_time/run_time < 1024
-	and cpu_time > 10
+	and cpu_time > 0
 	group by user_name
 	order by 2 desc
 	limit %s

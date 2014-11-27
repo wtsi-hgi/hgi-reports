@@ -10,9 +10,6 @@ cd "$( dirname "${BASH_SOURCE[0]}" )"
 export PATH=/software/python-2.7.8/bin:$PATH
 export LD_LIBRARY_PATH=/software/python-2.7.8/lib:$LD_LIBRARY_PATH
 
-# debug
-echo `which python`
-
 # generate the tex file
 python humgen_farmers_standup.py > humgen_farmers_standup.tex
 
