@@ -24,3 +24,4 @@ pdflatex humgen_farmers_standup
 # tidy up
 rm humgen_farmers_standup.tex
 rm humgen_farmers_standup.log
+rm humgen_farmers_standup.aux
