@@ -1,5 +1,5 @@
-define(["d3", "lodash"], function(d3, _) {
-    console.log("treemap using d3 v"+d3.version+" and underscore v"+_.VERSION);
+define(["d3", "lodash", "queue"], function(d3, _, queue) {
+    console.log("treemap using d3 v"+d3.version+", underscore v"+_.VERSION+", queue v"+queue.version);
     var treemap = new Object();
 
     //defaultFillKey = "ctime_cost";
@@ -132,30 +132,20 @@ define(["d3", "lodash"], function(d3, _) {
 	.attr("y", 6 - margin.top)
 	.attr("dy", ".75em");
 
-    var data_113;
-    var data_114;
-    d3.json("../api/lustretree/scratch113?depth=3&path=/lustre")
-	.on("error", function(error) { 
+    queue()
+    .defer(d3.json, "../api/lustretree/scratch113?depth=3&path=/lustre")
+    .defer(d3.json, "../api/lustretree/scratch114?depth=3&path=/lustre")
+    .await(function(error, data_113, data_114) {
+	if(error) {
 	    console.log("failure getting json data", error); 
-	})
-	.on("load", function(data) {
-	    data_113 = data;
-	    if(data_113 && data_114)
+	} else {
+	    if(data_113 && data_114) {
 		initialDataLoad();
-	})
-	.get();
-    
-    d3.json("../api/lustretree/scratch114?depth=3&path=/lustre")
-	.on("error", function(error) { 
-	    console.log("failure getting json data", error); 
-	})
-	.on("load", function(data) {
-	    data_114 = data;
-	    if(data_113 && data_114)
-		initialDataLoad();
-	})
-	.get();
-    
+	    } else {
+		console.log("queue completed but data missing. have data_113="+data_113+" and data_114="+data_114);
+	    }
+	}
+    });
 
     function mergeLustreTree(x, y) {
 	var merged = x;

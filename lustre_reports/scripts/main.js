@@ -1,6 +1,8 @@
 require.config({
     paths: {
 	d3: "d3.v3",
+	queue: "queue.v1",
+	lodash: "lodash",
     }
 });
 
