@@ -89,8 +89,9 @@ a:hover {
 }
 
 #footer {
+  width: 960px;
   top: 500px;
-  right: 140px;
+  left: 0px;
   text-align: right;
 }
 
@@ -136,9 +137,11 @@ rect.parent,
 
 div.tooltip {
   position: absolute;
+  top: 1em;
+  left: 1em;
   text-align: left;
-  padding: 8px;
-  font: 10px sans-serif;
+  padding: 1em;
+  font: 12px sans-serif;
   background: #ddd;
   border: solid 1px #aaa;
   border-radius: 8px;

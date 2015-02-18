@@ -354,12 +354,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
             .datum(d)
 	    .attr("class", "depth");
 	
-	var div = d3.select("body").selectAll("div.tooltip")
+	var div = d3.select("#footer").selectAll("div.tooltip")
 	    .data(d._children, path);
 	div.exit().remove();
 	div.enter().append("div")
-	    .attr("id", tooltipId)
 	    .attr("class", "tooltip")
+	    .attr("id", tooltipId)
 	    .style("opacity", 1e-6)
 	    .html(tooltipText);
 	
@@ -368,7 +368,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .enter().append("g");
 	
 	g.on("mouseover", mouseover)
-	    .on("mousemove", mousemove)
 	    .on("mouseout", mouseout);
 	
 
@@ -440,11 +439,11 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		.style("opacity", 1);
 	}
 	
-	function mousemove(g) {
-	    d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
-		.style("left", (d3.event.pageX - 34) + "px")
-		.style("top", (d3.event.pageY - 12) + "px");
-	}
+	// function mousemove(g) {
+	//     d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
+	// 	.style("left", (d3.event.pageX - 34) + "px")
+	// 	.style("top", (d3.event.pageY - 12) + "px");
+	// }
 	
 	function mouseout() {
 	    var div = d3.selectAll("div.tooltip");
