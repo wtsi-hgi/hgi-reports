@@ -1,11 +1,14 @@
 define(["d3", "lodash", "queue"], function(d3, _, queue) {
     console.log("treemap using d3 v"+d3.version+", underscore v"+_.VERSION+", queue v"+queue.version);
+
+    var BINARY_UNIT_LABELS  = ["B","KiB","MiB","GiB","TiB","PiB","EiB","ZiB","YiB"];
+    var HUMAN_TRIGGER_RATIO = 0.8;
+    var OUTPUT_UNIT_SEP = " ";
+
     var treemap = new Object();
 
-    //defaultFillKey = "ctime_cost";
-    //defaultSizeKey = "size";
-    defaultSizeKey = "ctime_cost";
-    defaultFillKey = "atime_cost";
+    var defaultSizeKey = "ctime_cost";
+    var defaultFillKey = "atime_cost";
     
     var margin = {top: 20, right: 0, bottom: 20, left: 0},
     width = 960 - margin.right - margin.left,
@@ -96,7 +99,29 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	}
 	return value;
     }
-    
+
+    function displayKey(key) {
+	return _.startCase(key)
+    }
+
+    function displayValue(d, key) {
+	if(key in valueAccessors) {
+	    value=valueAccessors[key](d);
+	    if (/^size/.exec(key)) {
+		bytes = d[key];
+		return bytes_to_human_readable_string(bytes);
+	    } else if(/_cost/.exec(key)) {
+		cost = d[key];
+		return "£" + cost.toFixed(2);
+	    } else {
+		return value;
+	    }
+	} else {
+	    console.log("Could not find valueAccessor for key: ", key);
+	    return "";
+	}
+    }
+
     var calcMinMax = function(nodes, f) {
 	var myminmax = {};
 	myminmax.min = d3.min(nodes, f);
@@ -205,15 +230,41 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	}
     }
 
+    function bytes_to_human_readable_string(bytes) {
+	var base = 1024;
+	var labels = BINARY_UNIT_LABELS;
+
+	var unit_index = 0; 
+	while(unit_index < (labels.length-1)) {
+	    var unitmax = Math.pow(base, (unit_index+1)) * HUMAN_TRIGGER_RATIO;
+	    if (bytes < unitmax) {
+		break;
+	    }
+	    unit_index++;
+	}
+	
+	return (bytes / Math.pow(base, unit_index)).toFixed(1) + OUTPUT_UNIT_SEP + labels[unit_index];
+    }
+
     function initialDataLoad() {
 
 	// set title text
 	title.text("Lustre");
 	
 	// set size and color options
-	_.each(treemap.root, function(value, key){if(_.isNumber(value)){ valueAccessors[key] = function(d) { if( _.isObject(d) && _.has(d, key)) { return d[key]; } else { return undefined; } } }});
-	_.each(treemap.root, function(value, key){if(_.isNumber(value)){ d3.select("#selectSize").insert("option").attr("value",key).attr("id","size_"+key).text(key) }});
-	_.each(treemap.root, function(value, key){if(_.isNumber(value)){ d3.select("#selectFill").insert("option").attr("value",key).attr("id","fill_"+key).text(key) }});
+	_.each(treemap.root, function(value, key){
+	    valueAccessors[key] = function(d) { 
+		if( _.isObject(d) && _.has(d, key)) { 
+		    return d[key]; 
+		} else { 
+		    return undefined; 
+		} 
+	    } 
+	    if(_.isNumber(value)){ 
+		d3.select("#selectSize").insert("option").attr("value",key).attr("id","size_"+key).text(key);
+		d3.select("#selectFill").insert("option").attr("value",key).attr("id","fill_"+key).text(key);
+	    }
+	});
 	
 	// set selected property on default option
 	d3.select("#size_"+sizeKey).attr("selected",1);
@@ -302,8 +353,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		.data(d._children)
 		.enter().append("g");
 	    
+	    g.on("mouseenter", mouseenter)
+		.on("mouseover", mouseover)
+		.on("mousemove", mousemove)
+		.on("mouseout", mouseout);
+	    
+
 	    g.filter(function(d) { return d._children; })
 		.classed("children", true)
+	        // .on("mouseenter", function(d) {
+		//     console.log("mouse over d:", d);
+		// })
+	        // .on("mouseleave", function(d) {
+		//     console.log("mouse left d:", d);
+		// })
 		.on("click", function(d) {
 		    var q = queue()
 		    _.forEach(path_data_url, function(n, path) {
@@ -333,6 +396,45 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    
 		    transition(d);
 		});
+
+	    var div = d3.select("body").append("div")
+	    .attr("class", "tooltip")
+	    .style("opacity", 1e-6)
+
+	    function mouseenter(d) {
+		// todo move template generation out
+		var title_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
+		//		var title_template = _.template("Path: <%= path %>");
+
+		var title_items = ["path", sizeKey, fillKey];
+		var title_data = {
+		    "labels": _.map(title_items, function(item) {
+			console.log("for item: ", item, " have key:", displayKey(item));
+			return {key: displayKey(item), value: displayValue(d, item)};
+		    }),
+		};
+		var title = title_template(title_data);
+		console.log("using title: ", title);
+		div.html(title);
+	    }
+	
+	    function mouseover() {
+		div.transition()
+		    .duration(500)
+		    .style("opacity", 1);
+	    }
+	
+	    function mousemove() {
+		div
+		    .style("left", (d3.event.pageX - 34) + "px")
+		    .style("top", (d3.event.pageY - 12) + "px");
+	    }
+    
+	    function mouseout() {
+		div.transition()
+		    .duration(500)
+		    .style("opacity", 1e-6);
+	    }
 	    
 	    g.selectAll(".child")
 		.data(function(d) { return d._children || [d]; })
