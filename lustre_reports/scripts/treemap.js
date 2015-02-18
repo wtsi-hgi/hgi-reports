@@ -132,21 +132,40 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("y", 6 - margin.top)
 	.attr("dy", ".75em");
 
-    queue()
-    .defer(d3.json, "../api/lustretree/scratch113?depth=3&path=/lustre")
-    .defer(d3.json, "../api/lustretree/scratch114?depth=3&path=/lustre")
-    .await(function(error, data_113, data_114) {
+    var path_data_url = {
+	"/lustre/scratch113": "../api/lustretree/scratch113?depth=3&path=/lustre",
+	"/lustre/scratch114": "../api/lustretree/scratch114?depth=3&path=/lustre",
+    }
+
+    var q = queue()
+    _.forEach(path_data_url, function(n, key) {
+	console.log("adding defer for retrieval of "+key+": "+path_data_url[key]);
+	q.defer(d3.json, path_data_url[key]);
+    });
+    q.await(function() {
+	error = _(arguments).shift();
+	data = arguments;
 	if(error) {
 	    console.log("failure getting json data", error); 
 	} else {
-	    if(data_113 && data_114) {
+	    if(_.every(data, _.isObject)) {
+		if(data.length >= 1) {
+		    var d = _(data).shift();
+		    console.log("setting initial treemap.root to:", d);
+		    treemap.root = d;
+		} 
+		_.forEach(data, function(d) {
+		    console.log("merging data into treemap.root:", d);
+		    treemap.root = mergeLustreTree(treemap.root, d);
+		});
 		initialDataLoad();
 	    } else {
-		console.log("queue completed but data missing. have data_113="+data_113+" and data_114="+data_114);
+		console.log("queue completed but data missing. have data=");
+		console.log(data);
 	    }
 	}
     });
-
+    
     function mergeLustreTree(x, y) {
 	var merged = x;
 	_.merge(merged, y, function(a, b, k, o, s) {
@@ -187,7 +206,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 
     function initialDataLoad() {
-	treemap.root = mergeLustreTree(data_113, data_114);
 
 	// set title text
 	title.text("Lustre");
@@ -287,21 +305,31 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    g.filter(function(d) { return d._children; })
 		.classed("children", true)
 		.on("click", function(d) {
-		    //		    console.log("clicked on d.path="+d.path);
-		    //		console.log("loading d.path="+d.path);
-		    //		d3.json("../api/lustretree/scratch113?depth=3&path="+d.path)
-		    //		    .on("error", function(error) { 
-		    //			console.log("failure getting json data", error); 
-		    //		    })
-		    //		    .on("load", function(data) {
-		    //			console.log("setting d to data");
-		    //			d = data;
-		    //		    node = root = d = data; 
-		    //		    accumulate(d);
+		    var q = queue()
+		    _.forEach(path_data_url, function(n, path) {
+			if(_.startsWith(d.path, path)) {
+			    q.defer(d3.json, path_data_url[path]);
+			}
+		    });
+		    q.await(function(error) {
+			data = arguments;
+			if(error) {
+			    console.log("failure getting json data", error); 
+			} else {
+			    if(_.every(data)) {
+				if(data.length==2) {
+				    //treemap.root = mergeLustreTree(data[0], data[1]);
+				//		    	    d = data;
+				//		    node = root = d = data; 
+				//		    accumulate(d);
 		    //		    layout(d);
-		    //		    display(d);
-		    //		})
-		    //		    .get();
+				//		    display(d);
+				} else {
+				    console.log("queue completed but data missing. have data="+data);
+				}
+			    }
+			}
+		    });
 		    
 		    transition(d);
 		});
