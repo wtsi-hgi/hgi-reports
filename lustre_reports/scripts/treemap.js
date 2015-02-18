@@ -430,7 +430,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    }
 
 	    function mouseover(g) {
-		console.log("mouseover! path="+g.path);
+		//console.log("mouseover! path="+g.path);
 		d3.selectAll("div.tooltip").filter(function(d) {return d.path != g.path;})
 		    .transition()
 		    .duration(500)
@@ -463,8 +463,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    g.append("rect")
 		.attr("class", "parent")
 		.call(rect)
-		.append("title")
-		.text(function(d) { return formatNumber(d.value); });
+//		.append("title")
+//		.text(function(d) { return formatNumber(d.value); });
 	    
 	    g.append("text")
 		.attr("dy", ".75em")
