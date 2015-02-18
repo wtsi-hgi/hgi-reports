@@ -156,15 +156,16 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("y", 6 - margin.top)
 	.attr("dy", ".75em");
 
-    var path_data_url = {
-	"/lustre/scratch113": "../api/lustretree/scratch113?depth=3&path=/lustre",
-	"/lustre/scratch114": "../api/lustretree/scratch114?depth=3&path=/lustre",
+    var path_data_url_templates = {
+	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=3&path=<%= path %>"),
+	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=3&path=<%= path %>"),
     }
 
     var q = queue()
-    _.forEach(path_data_url, function(n, key) {
-	console.log("adding defer for retrieval of "+key+": "+path_data_url[key]);
-	q.defer(d3.json, path_data_url[key]);
+    _.forEach(path_data_url_templates, function(n, key) {
+	url = path_data_url_templates[key]({path: "/lustre"})
+	console.log("adding defer for retrieval of "+key+": "+url);
+	q.defer(d3.json, url);
     });
     q.await(function() {
 	error = _(arguments).shift();
@@ -382,9 +383,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		// })
 		.on("click", function(d) {
 		    var q = queue()
-		    _.forEach(path_data_url, function(n, path) {
+		    _.forEach(path_data_url_templates, function(n, path) {
 			if(_.startsWith(d.path, path)) {
-			    q.defer(d3.json, path_data_url[path]);
+			    url = path_data_url_templates[path](d);
+			    q.defer(d3.json, url);
 			}
 		    });
 		    q.await(function(error) {
