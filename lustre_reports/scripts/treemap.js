@@ -248,7 +248,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     function initialDataLoad() {
 
 	// set title text
-	title.text("Lustre");
+	title.text("Humgen Lustre");
 	
 	// set size and color options
 	_.each(treemap.root, function(value, key){
@@ -332,6 +332,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    nodes = _.flatten(nodes);
 	}
 	
+	function tooltipId(d) {
+	    return "tooltip:"+path(d);
+	}
+	
 	function display(d) {
 	    grandparent
 		.datum(d.parent)
@@ -350,12 +354,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
             .datum(d)
 		.attr("class", "depth");
 	    
+	    var div = d3.select("body").selectAll("div.tooltip")
+		.data(d._children, path);
+	    div.exit().remove();
+	    div.enter().append("div")
+	        .attr("id", tooltipId)
+		.attr("class", "tooltip")
+		.style("opacity", 1e-6)
+		.html(tooltipText);
+	    
 	    var g = g1.selectAll("g")
 		.data(d._children)
 		.enter().append("g");
 	    
-	    g.on("mouseenter", mouseenter)
-		.on("mouseover", mouseover)
+	    g.on("mouseover", mouseover)
 		.on("mousemove", mousemove)
 		.on("mouseout", mouseout);
 	    
@@ -398,40 +410,45 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    transition(d);
 		});
 
-	    var div = d3.select("body").append("div")
-	    .attr("class", "tooltip")
-	    .style("opacity", 1e-6)
-
-	    function mouseenter(d) {
+	    function tooltipText(d) {
+		
 		// todo move template generation out
-		var title_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
-		//		var title_template = _.template("Path: <%= path %>");
+		var text_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
+		//		var text_template = _.template("Path: <%= path %>");
 
-		var title_items = ["path", sizeKey, fillKey];
-		var title_data = {
-		    "labels": _.map(title_items, function(item) {
+		var text_items = ["path", sizeKey, fillKey];
+		var text_data = {
+		    "labels": _.map(text_items, function(item) {
 			//console.log("for item: ", item, " have key:", displayKey(item));
 			return {key: displayKey(item), value: displayValue(d, item)};
 		    }),
 		};
-		var title = title_template(title_data);
-		//console.log("using title: ", title);
-		div.html(title);
+		var text = text_template(text_data);
+		//console.log("generated tooltiptext for d:", d, " text: ", text);
+
+		return text;
 	    }
-	
-	    function mouseover() {
-		div.transition()
+
+	    function mouseover(g) {
+		console.log("mouseover! path="+g.path);
+		d3.selectAll("div.tooltip").filter(function(d) {return d.path != g.path;})
+		    .transition()
+		    .duration(500)
+		    .style("opacity", 1e-6);
+		d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
+		    .transition()
 		    .duration(500)
 		    .style("opacity", 1);
 	    }
 	
-	    function mousemove() {
-		div
+	    function mousemove(g) {
+		d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
 		    .style("left", (d3.event.pageX - 34) + "px")
 		    .style("top", (d3.event.pageY - 12) + "px");
 	    }
-    
+	    
 	    function mouseout() {
+		var div = d3.selectAll("div.tooltip");
 		div.transition()
 		    .duration(500)
 		    .style("opacity", 1e-6);
