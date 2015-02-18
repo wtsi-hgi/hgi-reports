@@ -276,8 +276,10 @@ define(["d3", "lodash"], function(d3, _) {
 	    grandparent
 		.datum(d.parent)
 		.on("click", function(d) {
-		    console.log("grandparent clicked d.path="+d.path);
-		    transition(d);
+		    if(!_.isUndefined(d)) {
+			//console.log("grandparent clicked d.path="+d.path);
+			transition(d);
+		    }
 		})
 		.select("text")
 		.text(path(d));
@@ -295,7 +297,7 @@ define(["d3", "lodash"], function(d3, _) {
 	    g.filter(function(d) { return d._children; })
 		.classed("children", true)
 		.on("click", function(d) {
-		    console.log("clicked on d.path="+d.path);
+		    //		    console.log("clicked on d.path="+d.path);
 		    //		console.log("loading d.path="+d.path);
 		    //		d3.json("../api/lustretree/scratch113?depth=3&path="+d.path)
 		    //		    .on("error", function(error) { 
@@ -352,7 +354,7 @@ define(["d3", "lodash"], function(d3, _) {
 	
 	
 	function transition(d) {
-	    console.log("transition!");
+//	    console.log("transition!");
 	    node = d;
 	    if (transitioning || !d) return;
 	    transitioning = true;
@@ -382,8 +384,8 @@ define(["d3", "lodash"], function(d3, _) {
 	    
 	    // Remove the old node when the transition is finished.
 	    t1.remove().each("end", function(d) {
-		console.log("remove!");
-		console.log(d);
+//		console.log("remove!");
+//		console.log(d);
 		svg.style("shape-rendering", "crispEdges");
 		transitioning = false;
 		curg = g2;
