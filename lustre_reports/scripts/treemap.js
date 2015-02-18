@@ -7,8 +7,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var treemap = new Object();
 
-    var defaultSizeKey = "ctime_cost";
-    var defaultFillKey = "atime_cost";
+    var defaultSizeKey = "size";
+    var defaultFillKey = "ctime_cost";
     
     var margin = {top: 20, right: 0, bottom: 20, left: 0},
     width = 960 - margin.right - margin.left,
@@ -26,8 +26,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     
     var title = d3.select("#footer").insert("div", ":first-child");
     
-    var nodes = new Array();
-    
+    var nodes;
     var node;
     
     var sizeKey = defaultSizeKey;
@@ -277,6 +276,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	node = treemap.root;
 	
 	function initialize(root) {
+	    nodes = new Array();
+    
 	    root.x = root.y = 0;
 	    root.dx = width;
 	    root.dy = height;
@@ -409,12 +410,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		var title_items = ["path", sizeKey, fillKey];
 		var title_data = {
 		    "labels": _.map(title_items, function(item) {
-			console.log("for item: ", item, " have key:", displayKey(item));
+			//console.log("for item: ", item, " have key:", displayKey(item));
 			return {key: displayKey(item), value: displayValue(d, item)};
 		    }),
 		};
 		var title = title_template(title_data);
-		console.log("using title: ", title);
+		//console.log("using title: ", title);
 		div.html(title);
 	    }
 	
