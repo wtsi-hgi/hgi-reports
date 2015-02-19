@@ -362,16 +362,16 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .style("opacity", 1e-6)
 	    .html(tooltipText);
 	
-	var g = g1.selectAll("g")
+	var parent_and_children = g1.selectAll("g.parent_and_children")
 	    .data(d._children)
-	    .enter().append("g");
-	
-	g.on("mouseover", mouseover)
+	    .enter().append("svg:g");
+
+	parent_and_children.on("mouseover", mouseover)
 	    .on("mouseout", mouseout);
 	
 
-	g.filter(function(d) { return d._children; })
-	    .classed("children", true)
+	parent_and_children.filter(function(d) { return d._children; })
+	    .classed("parent_and_children", true)
 	// .on("mouseenter", function(d) {
 	//     console.log("mouse over d:", d);
 	// })
@@ -451,22 +451,42 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		.style("opacity", 1e-6);
 	}
 	
-	g.selectAll(".child")
+	parent_and_children.selectAll(".child")
 	    .data(function(d) { return d._children || [d]; })
 	    .enter().append("rect")
 	    .attr("class", "child")
-	    .call(rect);
+	    .call(treebox)
+	    .style("fill", fillColor);
 	
-	g.append("rect")
+	parent_and_children.append("rect")
 	    .attr("class", "parent")
-	    .call(rect);
+	    .call(treebox)
+	    .style("fill", fillColor);
 	//		.append("title")
 	//		.text(function(d) { return formatNumber(d.value); });
 	
-	g.append("text")
-	    .attr("dy", ".75em")
-	    .text(function(d) { return name(d); })
-	    .call(text);
+	var titlesvg = parent_and_children.append("svg")
+	    .attr("class", "parent_title")
+	    .attr("viewBox", "-100 -10 200 20")
+	    .attr("preserveAspectRatio", "xMidYMid meet")
+	    .call(treebox);
+
+	// titlesvg.append("rect")
+	//     .attr("x", -100)
+	//     .attr("y", -10)
+	//     .attr("width", 200)
+	//     .attr("height", 20)
+	//     .style("stroke-width", 1)
+	//     .style("stroke", "rgb(255,0,0)")
+	//     .style("fill-opacity", 0);
+
+	titlesvg.append("text")
+	    .attr("font-size", 16)
+	    .attr("x", 0)
+	    .attr("y", 0)
+	    .attr("dy", ".3em")
+	    .style("text-anchor", "middle")
+	    .text(function(d) { return name(d); });
 	
 	d3.select("#selectSize").on("change", function() {
 	    sizeKey = this.value;
@@ -512,11 +532,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	g2.selectAll("text").style("fill-opacity", 0);
 	
 	// Transition to the new view.
-	t1.selectAll("text").call(text).style("fill-opacity", 0);
-	t2.selectAll("text").call(text).style("fill-opacity", 1);
-	t1.selectAll("rect").call(rect);
-	t2.selectAll("rect").call(rect);
-	
+	t1.selectAll(".parent_title").call(treebox);
+	t2.selectAll(".parent_title").call(treebox);
+	t1.selectAll("text").style("fill-opacity", 0);
+	t2.selectAll("text").style("fill-opacity", 1);
+	t1.selectAll("rect").call(treebox).style("fill", fillColor);
+	t2.selectAll("rect").call(treebox).style("fill", fillColor);
+
 	// Remove the old node when the transition is finished.
 	t1.remove().each("end", function(d) {
 	    svg.style("shape-rendering", "crispEdges");
@@ -526,17 +548,16 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
     }
     
-    function text(text) {
+    function textbox(text) {
 	text.attr("x", function(d) { return x(d.x) + 6; })
 	    .attr("y", function(d) { return y(d.y) + 6; });
     }
     
-    function rect(rect) {
-	rect.attr("x", function(d) { return x(d.x); })
+    function treebox(b) {
+	b.attr("x", function(d) { return x(d.x); })
 	    .attr("y", function(d) { return y(d.y); })
 	    .attr("width", function(d) { return x(d.x + d.dx) - x(d.x); })
-	    .attr("height", function(d) { return y(d.y + d.dy) - y(d.y); })
-	    .style("fill", fillColor);
+	    .attr("height", function(d) { return y(d.y + d.dy) - y(d.y); });
     }
     
     function name(d) {
