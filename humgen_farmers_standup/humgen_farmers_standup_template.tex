@@ -3,16 +3,23 @@
 
 \usepackage{graphicx}
 \usepackage[margin=4mm]{geometry}
-\usepackage{longtable}
+\usepackage{longtable,multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+\renewcommand{\arraystretch}{1.2}
 \begin{document}
 \section*{CPU Used since @!date!@ : Top @!N!@ Users}
-\begin{longtable}{|l|p{10mm}|p{10mm}|p{10mm}|p{10mm}|p{10mm}|p{15mm}|p{20mm}|}
+\begin{longtable}{|l|l|R{15mm}|R{30mm}|R{15mm}|R{10mm}|}
 \hline
-Name & Cores / Weeks & Min. CPU Eff. & Avg. CPU Eff & Max. CPU Eff & Min. Mem Eff. & Avg. Mem Eff. & Max Mem Eff. \\
+ & Name & Cores / Weeks & Avg. CPU Efficiency & \# Jobs & Avg. Run Time (Hrs.)\\
 \hline
 \hline
-<!--(for user in topN)-->
-\includegraphics[height=10mm]{@!user[-1]!@} @!user[-2]!@ (@!user[0]!@) & @!"%.2f" % float(user[1])!@ & @! "%.2f" % float(user[2])!@ & @! "%.2f" % float(user[3])!@ & @! "%.2f" % float(user[4])!@ & @! "%.2f" % float(user[5])!@ & @! "%.2f" % float(user[6])!@ & @! "%.2f" % float(user[7])!@ \\
+<!--(for row in topN)-->
+\multirow{2}{*}{\includegraphics[height=10mm]{@!row['jpeg_filename']!@}} & @!row['fname']!@ (@!row['user_name']!@) & @! "%.2f" % float(row['core_weeks']) !@ & @! "%.2f" % float(row['cpu_time_avg']) !@ $\pm$ @! "%.2f" % float(row['cpu_time_stddev']) !@ & @! int(row['num_jobs']) !@ & @! "%.2f" % float(row['run_time_avg']) !@ \\
+& & \textcolor{red}{ @! "%.2f" % float(row['failed_core_weeks']) !@} & \textcolor{red}{ @! "%.2f" % float(row['failed_cpu_time_avg']) !@ $\pm$ @! "%.2f" % float(row['failed_cpu_time_stddev']) !@} & \textcolor{red}{@! int(row['failed_num_jobs']) !@} & \textcolor{red}{@! "%.2f" % float(row['failed_run_time_avg']) !@}\\
 \hline
 <!--(end)-->
 \end{longtable}

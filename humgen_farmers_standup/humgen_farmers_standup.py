@@ -50,16 +50,14 @@ def seven_days_ago() :
 N=20
 top_N_sql="""
 	select
-		user_name,
-		sum(cpu_time)/(60*60*24*7),
-		100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))),
-		100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))),
-		100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))),
-		100.0*min(job_mem_usage/ifnull(mem_req,100)),
-		100.0*avg(job_mem_usage/ifnull(mem_req,100)),
-		100.0*max(job_mem_usage/ifnull(mem_req,100)),
-		count(*),
-		avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))
+		user_name as user_name,
+		sum(cpu_time)/(60*60*24*7) as core_weeks,
+		100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_min,
+		100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_max,
+		100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as cpu_time_avg,
+        100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_stddev,
+		count(*) as num_jobs,
+		avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as run_time_avg
 	from rpt_jobmart_raw as r, isg_work_area_groups as g
 	where r.project_name=g.cname
 	and pname='humgen'
@@ -71,24 +69,53 @@ top_N_sql="""
 	and ncores >0
 	and cpu_time/run_time < 1024
 	and cpu_time > 0
+    and job_exit_status='DONE'
 	group by user_name
 	order by 2 desc
 	limit %s
 """
+failed_by_user="""
+    select
+        user_name as user_name,
+        sum(cpu_time)/(60*60*24*7) as failed_core_weeks,
+        100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_min,
+        100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_max,
+        100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as failed_cpu_time_avg,
+        100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_stddev,
+        count(*) as failed_num_jobs,
+        avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as failed_run_time_avg
+    from rpt_jobmart_raw as r, isg_work_area_groups as g
+    where r.project_name=g.cname
+    and pname='humgen'
+    and finish_time_gmt >='%s'
+    and cluster_name='farm3'
+    and finish_time_gmt > start_time_gmt
+    and run_time > 0
+    and nprocs > 0
+    and ncores >0
+    and cpu_time/run_time < 1024
+    and cpu_time > 0
+    and job_exit_status='EXIT'
+    and user_name='%s'
+    group by user_name
+"""
+
 top_N_sql=top_N_sql % (seven_days_ago(),N)
 p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
 topN=eval(p.communicate(input=top_N_sql)[0])
 for row in topN :
-	uid=row[0]
-	fname,jpeg=get_user_data(uid)
-	row.append(fname)
-	jpeg_filename='portraits/'+uid+'.jpg'
-	open(jpeg_filename,'wb').write(jpeg)
-	row.append(jpeg_filename)
+    uid=row['user_name']
+    fname,jpeg=get_user_data(uid)
+    row['fname']=fname
+    jpeg_filename='portraits/'+uid+'.jpg'
+    open(jpeg_filename,'wb').write(jpeg)
+    row['jpeg_filename']=jpeg_filename
+    failed_by_user_sql=failed_by_user % (seven_days_ago(),uid)
+    p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
+    failed=eval(p.communicate(input=failed_by_user_sql)[0])
+    row.update(failed[0])
 
 # render the latex template
 tpl=pyratemp.Template(filename='humgen_farmers_standup_template.tex')
 latex=tpl(date=seven_days_ago(), topN=topN, N=N)
 print latex
-
-
