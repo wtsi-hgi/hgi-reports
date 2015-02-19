@@ -26,7 +26,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     
     var title = d3.select("#footer").insert("div", ":first-child");
     
-    var nodes;
     var node;
 
     var curg;
@@ -280,7 +279,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 	
     function initialize(root) {
-	nodes = new Array();
+	treemap.nodes = new Array();
 	
 	root.x = root.y = 0;
 	root.dx = width;
@@ -323,7 +322,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     function layout(d) {
 	if (d._children) {
 	    var childNodes = treemap_layout.nodes({_children: d._children});
-	    nodes.push(childNodes);
+	    treemap.nodes.push(childNodes);
 	    d._children.forEach(function(c) {
 		c.x = d.x + c.x * d.dx;
 		c.y = d.y + c.y * d.dy;
@@ -333,7 +332,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		layout(c);
 	    });
 	}
-	nodes = _.flatten(nodes);
+	treemap.nodes = _.flatten(treemap.nodes);
     }
     
     function display(d) {
@@ -348,7 +347,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .select("text")
 	    .text(path(d));
 	
-	minmax = calcMinMax(nodes, valueAccessors[fillKey]);
+	minmax = calcMinMax(treemap.nodes, valueAccessors[fillKey]);
 	
 	var g1 = svg.insert("g", ".grandparent")
             .datum(d)
@@ -460,7 +459,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	g.append("rect")
 	    .attr("class", "parent")
-	    .call(rect)
+	    .call(rect);
 	//		.append("title")
 	//		.text(function(d) { return formatNumber(d.value); });
 	
@@ -520,8 +519,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	// Remove the old node when the transition is finished.
 	t1.remove().each("end", function(d) {
-	    //		console.log("remove!");
-	    //		console.log(d);
 	    svg.style("shape-rendering", "crispEdges");
 	    transitioning = false;
 	    curg = g2;
@@ -558,7 +555,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     
-    treemap.nodes = nodes;
     treemap.layout = treemap_layout;
     treemap.svg = svg;
     treemap.grandparent = grandparent;
