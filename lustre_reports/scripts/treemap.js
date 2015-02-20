@@ -484,6 +484,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .attr("font-size", 16)
 	    .attr("x", 0)
 	    .attr("y", 0)
+	    .attr("width", 200)
+	    .attr("height", 20)
 	    .attr("dy", ".3em")
 	    .style("text-anchor", "middle")
 	    .text(function(d) { return name(d); });
