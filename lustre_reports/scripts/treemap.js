@@ -4,9 +4,25 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     var BINARY_UNIT_LABELS  = ["B","KiB","MiB","GiB","TiB","PiB","EiB","ZiB","YiB"];
     var HUMAN_TRIGGER_RATIO = 0.8;
     var OUTPUT_UNIT_SEP = " ";
+    var HTTP_RETRY_COUNT = 5;
 
-    var treemap = new Object();
-
+    var _root = new Object();
+    var treemap = {
+	get root() {
+	    return _root;
+	},
+	set root(d) {
+	    _root = d;
+	},
+	nodes: new Array(),
+	layout: undefined,
+	svg: undefined,
+	grandparent: undefined,
+	valueAccessors: {
+	    count: function(d) {return 1;}
+	},
+    };
+    
     var defaultSizeKey = "size";
     var defaultFillKey = "ctime_cost";
     
@@ -32,10 +48,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var sizeKey = defaultSizeKey;
     var fillKey = defaultFillKey;
-    
-    var valueAccessors = {
-	count: function(d) {return 1;}
-    };
     
     var minmax = new Object();
     
@@ -78,20 +90,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     var fillColor = function(d) {
-	if(!(fillKey in valueAccessors)) {
+	if(!(fillKey in treemap.valueAccessors)) {
 	    console.log("fillKey not in valueAccessors, defaulting to count");
 	    fillKey = "count";
 	}
 	var color = colorGen();
-	return color(valueAccessors[fillKey](d));
+	return color(treemap.valueAccessors[fillKey](d));
     }
     
     var sizeValue = function(d) {
-	if(!(sizeKey in valueAccessors)) {
+	if(!(sizeKey in treemap.valueAccessors)) {
 	    console.log("sizeKey not in valueAccessors, defaulting to count");
 	    sizeKey = "count";
 	}
-	value=valueAccessors[sizeKey](d);
+	value=treemap.valueAccessors[sizeKey](d);
 	//  console.log("sizeValue for d.name="+d.name+" using valueAccessor for "+sizeKey+" is "+value);
 	if(!value) {
 	    value = 0;
@@ -105,8 +117,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 
     function displayValue(d, key) {
-	if(key in valueAccessors) {
-	    value=valueAccessors[key](d);
+	if(key in treemap.valueAccessors) {
+	    value=treemap.valueAccessors[key](d);
 	    if (/^size/.exec(key)) {
 		bytes = d[key];
 		return bytes_to_human_readable_string(bytes);
@@ -129,13 +141,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	return myminmax;
     }
     
-    var treemap_layout = d3.layout.treemap()
-	.children(function(d, depth) {return depth ? null : d._children; })
+    treemap.layout = d3.layout.treemap()
+	.children(function(d, depth) {return depth ? null : d.child_dirs; })
 	.sort(function(a, b) {return a.value - b.value; })
 	.ratio(height / width * 0.5 * (1 + Math.sqrt(5)))
 	.round(false);
     
-    var svg = d3.select("#chart").append("svg")
+    treemap.svg = d3.select("#chart").append("svg")
 	.attr("width", width + margin.left + margin.right)
 	.attr("height", height + margin.bottom + margin.top)
 	.style("margin-left", -margin.left + "px")
@@ -144,75 +156,159 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("transform", "translate(" + margin.left + "," + margin.top + ")")
 	.style("shape-rendering", "crispEdges");
     
-    var grandparent = svg.append("g")
+    treemap.grandparent = treemap.svg.append("g")
 	.attr("class", "grandparent");
     
-    grandparent.append("rect")
+    treemap.grandparent.append("rect")
 	.attr("y", -margin.top)
 	.attr("width", width)
 	.attr("height", margin.top);
     
-    grandparent.append("text")
+    treemap.grandparent.append("text")
 	.attr("x", 6)
 	.attr("y", 6 - margin.top)
 	.attr("dy", ".75em");
 
     var path_data_url_templates = {
-	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=3&path=<%= path %>"),
-	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=3&path=<%= path %>"),
+	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
+	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
 
-    var q = queue()
-    _.forEach(path_data_url_templates, function(n, key) {
-	url = path_data_url_templates[key]({path: "/lustre"})
-	console.log("adding defer for retrieval of "+key+": "+url);
-	q.defer(d3.json, url);
-    });
-    q.await(function() {
-	error = _(arguments).shift();
-	data = arguments;
-	if(error) {
-	    console.log("failure getting json data", error); 
-	} else {
-	    if(_.every(data, _.isObject)) {
-		if(data.length >= 1) {
-		    var d = _(data).shift();
-		    console.log("setting initial treemap.root to:", d);
-		    treemap.root = d;
-		} 
-		_.forEach(data, function(d) {
-		    console.log("merging data into treemap.root:", d);
-		    treemap.root = mergeLustreTree(treemap.root, d);
-		});
-		initialDataLoad();
-	    } else {
-		console.log("queue completed but data missing. have data=");
-		console.log(data);
+    function queueTreemapDataRequests(d) {
+	//console.log("queueTreemapDataRequests d=", d);
+	var q = queue();
+	_.forEach(path_data_url_templates, function(n, root_path) {
+	    if(_.startsWith(d.path, root_path) || _.startsWith(root_path, d.path)) {
+		url = path_data_url_templates[root_path](d);
+		console.log("queueTreemapDataRequests: requesting url="+url);
+		q.defer(d3.json, url);
 	    }
-	}
-    });
+	});
+	return q;
+    }
+
+    function awaitTreemapDataRequests(q, retry_d, treemap, onload_cb) {
+	//console.log("awaitTreemapDataRequests d=", d, " old_root=", old_root);
+	q.await(function() {
+	    //console.log("awaitTreemapDataRequests: have treemap.root:", treemap.root);
+	    error = _(arguments).shift();
+	    data = arguments;
+	    if(error) {
+		if(error.status == 401) {
+		    console.log("Client unauthorized ("+error.status+" ", error.statusText,"): ", error.responseText);
+		    console.log("Should handle authorization TODO!");
+		} else if(error.status >= 500 && error.status < 600) {
+		    console.log("Server error "+error.status+" (", error.statusText,"): ", error.responseText);
+		    http_retries--;
+		    if(http_retries > 0) {
+			console.log("Retrying request for retry_d=", retry_d);
+			fetchTreemapData(retry_d, treemap, onload_cb);
+		    } else {
+			console.log("No more retries! Giving up.");
+			console.log("Should report this to user TODO!");
+		    }
+		} else if(error.status >= 400 && error.status < 500) {
+		    console.log("Client error ("+error.status+" ", error.statusText,"): ", error.responseText);
+		    console.log("Should print to page TODO!");
+		} else if(error.status == 0) {
+		    console.log("CORS error, possibly from shibboleth redirect?");
+		    console.log(error.getAllResponseHeaders());
+		    //TODO fix reload to take us back where we were
+		    window.location.reload();
+		} else {
+		    console.log("Unexpected error ", error.readyState,  error.response, error.responseText, error.responseType, error.responseXML, error.status, error.statusText, error.timeout, error.withCredentials);
+		    console.log(error.getAllResponseHeaders());
+		    //TODO fix reload to take us back where we were
+		    window.location.reload();
+		}
+	    } else {
+		http_retries = HTTP_RETRY_COUNT;
+		if(_.every(data, _.isObject) && data.length >= 1) {
+		    if (_.isEmpty(treemap.root)) {
+			var d = _(data).shift();
+			console.log("treemap.root is empty: ", treemap.root, "setting to d:", d);
+			treemap.root = d;
+		    }
+		    _.forEach(data, function(d) {
+			console.log("merging d into treemap.root. d=", d);
+			treemap.root = mergeLustreTree(treemap.root, d);
+		    });
+		    
+		    //initialDataLoad();
+		    var result = _.attempt(onload_cb);
+
+		    if (_.isError(result)) {
+			console.log("Error invoking onload_cb: ", onload_cb);
+		    }
+		    
+		} else {
+		    console.log("queue completed but data missing. have data=", data);
+		}
+	    }
+	});
+    }
+
+    function fetchTreemapData(d, treemap, load_callback) {
+	//console.log("fetchTreemapData d=", d, "treemap.root=", treemap.root)
+	var q = queueTreemapDataRequests(d);
+	awaitTreemapDataRequests(q, d, treemap, load_callback)
+    }
     
+    var http_retries = HTTP_RETRY_COUNT;
+    fetchTreemapData({path: "/lustre"}, treemap, initialDataLoad);
+
     function mergeLustreTree(x, y) {
 	var merged = x;
-	_.merge(merged, y, function(a, b, k, o, s) {
+	//console.log("mergeLustreTree: merging y.path=", y.path, " into merged.path=", merged.path);
+	var subtree = merged;
+	while (subtree.path != y.path) {
+	    var child_dirs = subtree.child_dirs;
+	    subtree = _.find(child_dirs, function(child) {return ((y.path == child.path) || _.startsWith(y.path, child.path+"/"));});
+	    
+	    if (_.isUndefined(subtree)) {
+		console.log("mergeLustreTree: ERROR cannot find subtree for merge - are trees disjoint? (y=", y, " x=", x, " child_dirs=", child_dirs);
+		return merged;
+	    }
+	    // if (subtree.path != y.path) {
+	    //     subtree = _.find(merged.child_dirs, function(child) {return child.path == y.path});
+	    //     if (_.isUndefined(subtree)) {
+	    // 	console.log("mergeLustreTree: deep subtree merging not supported. Cannot continue.");
+	    // 	return merged;
+	    //     }
+	}
+
+	//console.log("mergeLustreTree: subtree merge of y.path=", y.path, " into subtree.path=", subtree.path);
+	_.merge(subtree, y, function(a, b, k, o, s) {
 	    if (_.isUndefined(a)) {
 		return b;
 	    } else if (_.isUndefined(b)) {
 		return a;
-	    } else if(_.isString(a)) {
+	    } else if(_.isString(a) && _.isString(b)) {
 		if(a == b) {
 		    return a;
 		} else {
-		    return a.concat(b);
+		    console.log("mergeLustreTree: ERROR, strings not equal for k=", k, " a=", a, " b=", b, ", returning b");
+		    //		    return a.concat(b);
+		    return b;
 		}
-	    } else if(_.isNumber(a)) {
-		return a+b;
-	    } else if(_.isArray(a) && k == "children") {
-		return mergeChildren(a, b);
+	    } else if(_.isNumber(a) && _.isNumber(b)) {
+		if(a == b) {
+		    return a;
+		} else {
+		    if(subtree.path == o.path && subtree.path == s.path) {
+			return a+b;
+		    } else {
+			console.log("mergeLustreTree: ERROR, numbers not equal for k=", k, " a=", a, " b=", b, " o=", o, " s=", s, ", returning b");
+		    }
+		}
+	    } else if(k == "child_dirs") {
+		if(_.isArray(a) && _.isArray(b)) {
+		    return mergeChildren(a, b);
+		} else {
+		    console.log("mergeLustreTree: ERROR, have child_dirs but one is unexpectedly not an array. a=", a, " b=", b);
+		}
 	    } else {
-		console.log("mergeLustreTree encountered unexpected property k="+k);
-		console.log(a);
-		console.log(b);
+		console.log("mergeLustreTree: ERROR, encountered unexpected property k=", k, " a=", a, " b=", b);
 		return undefined;
 	    }
 	});
@@ -220,15 +316,40 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 
     function mergeChildren(x, y) {
-	xpaths = _.map(x, function(a) {return a.path});
-	ypaths = _.map(y, function(a) {return a.path});
-	sharedpaths = _.intersection(xpaths, ypaths);
-	if (_.size(sharedpaths) > 0 && !_.isUndefined(sharedpaths[0])) {
-	    console.log("mergeChildren refusing to continue with sharedpaths length "+_.size(sharedpaths));
-	    return undefined;
-	} else {
-	    return x.concat(y);
-	}
+	var merged_children = new Array();
+	_.forEach(_.union(_.map(x, path), _.map(y, path)), function(child_path) {
+	    var x_children = _.filter(x, function(d) {
+		return child_path == path(d);
+	    });
+	    var num_x_children = _.size(x_children);
+	    
+	    var y_children = _.filter(y, function(d) {
+		return child_path == path(d);
+	    });
+	    var num_y_children = _.size(y_children);
+	    
+	    if (num_x_children == 1 && num_y_children == 0) {
+		//console.log("mergeChildren: using x_children for child_path=", child_path);
+		merged_children.push(x_children[0]);
+	    } else if (num_x_children == 0 && num_y_children == 1) {
+		//console.log("mergeChildren: using y_children for child_path=", child_path);
+		merged_children.push(y_children[0]);
+	    } else if (num_x_children == 1 && num_y_children == 1) {
+		//console.log("mergeChildren: recursively merging child_path=", child_path);
+		var children = mergeLustreTree(x_children[0], y_children[0]);
+		//console.log("mergeChildren: children=", children);
+		merged_children.push(children);
+	    } else if (num_x_children == 0 && num_y_children == 0) {
+		console.log("mergeChildren: unexpectedly had no children for child_path=", child_path);
+	    } else if (num_x_children > 1 || num_y_children > 1) {
+		console.log("mergeChildren: unexpectedly had more than one child for child_path=", child_path);
+	    } else {
+		console.log("mergeChildren: unexpected error for child_path=", child_path, " x_children=", x_children, " y_children=", y_children);
+	    }
+	});
+	
+	//console.log("mergeChildren: returning merged_children=", merged_children);
+	return merged_children;
     }
 
     function bytes_to_human_readable_string(bytes) {
@@ -248,13 +369,14 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 
     function initialDataLoad() {
+	console.log("initialDataLoad: have treemap=", treemap);
 
 	// set title text
 	title.text("Humgen Lustre");
 	
 	// set size and color options
 	_.each(treemap.root, function(value, key){
-	    valueAccessors[key] = function(d) { 
+	    treemap.valueAccessors[key] = function(d) { 
 		if( _.isObject(d) && _.has(d, key)) { 
 		    return d[key]; 
 		} else { 
@@ -271,16 +393,21 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#size_"+sizeKey).attr("selected",1);
 	d3.select("#fill_"+fillKey).attr("selected",1);
 	
+ 	//console.log("0: treemap.root.child_dirs=", treemap.root.child_dirs);
+	//console.log("0: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	initialize(treemap.root);
 	accumulate(treemap.root);
+ 	//console.log("1: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
+	//console.log("1: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	layout(treemap.root);
 	curg = display(treemap.root);
-	node = treemap.root;
+	if (_.isUndefined(node)) {
+	    console.log("setting node to treemap.root");
+	    node = treemap.root;
+	}
     }
 	
     function initialize(root) {
-	treemap.nodes = new Array();
-	
 	root.x = root.y = 0;
 	root.dx = width;
 	root.dy = height;
@@ -295,14 +422,14 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	//    return (d._children = d.children)
 	//        ? d.value = d.children.reduce(function(p, v) { return p + accumulate(v); }, 0)
 	//        : d.value = sizeValue(d);
-	if (!d._children) {
-	    d._children = d.children;
-	}
-	if (d._children) {
+	// if (!d._children) {
+	//     d._children = d.children;
+	// }
+	if (d.child_dirs) {
 	    //	console.log("accumulate: accumulating children of d.name="+d.name)
 	    //        d.value = d.children.reduce(function(p, v) { return p + accumulate(v); }, 0);
 	    //	console.log("accumulate: accumulated total for d.name="+d.name+" is "+d.value);
-	    d._children.forEach(function(c) {accumulate(c)});
+	    d.child_dirs.forEach(function(c) {accumulate(c)});
 	    d.value = sizeValue(d);
 	} else {
 	    //	console.log("accumulate: d.name="+d.name+" has no children");
@@ -320,10 +447,14 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     // of sibling was laid out in 1×1, we must rescale to fit using absolute
     // coordinates. This lets us use a viewport to zoom.
     function layout(d) {
-	if (d._children) {
-	    var childNodes = treemap_layout.nodes({_children: d._children});
+	if (d.child_dirs) {
+	    //console.log("2: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
+	    //console.log("2: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
+	    var childNodes = treemap.layout.nodes({child_dirs: d.child_dirs});
+	    //console.log("3: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
+	    //console.log("3: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	    treemap.nodes.push(childNodes);
-	    d._children.forEach(function(c) {
+	    d.child_dirs.forEach(function(c) {
 		c.x = d.x + c.x * d.dx;
 		c.y = d.y + c.y * d.dy;
 		c.dx *= d.dx;
@@ -336,9 +467,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     function display(d) {
-	grandparent
+	treemap.grandparent
 	    .datum(d.parent)
 	    .on("click", function(d) {
+		console.log("clicked grandparent=", d);
 		if(!_.isUndefined(d)) {
 		    //console.log("grandparent clicked d.path="+d.path);
 		    transition(d);
@@ -347,65 +479,61 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .select("text")
 	    .text(path(d));
 	
-	minmax = calcMinMax(treemap.nodes, valueAccessors[fillKey]);
+	minmax = calcMinMax(treemap.nodes, treemap.valueAccessors[fillKey]);
 	
-	var g1 = svg.insert("g", ".grandparent")
+	var g1 = treemap.svg.insert("g", ".grandparent")
             .datum(d)
 	    .attr("class", "depth");
 	
+	console.log("creating tooltips for d.child_dirs=", d.child_dirs);
 	var div = d3.select("#footer").selectAll("div.tooltip")
-	    .data(d._children, path);
+	    .data(d.child_dirs, path);
+	
 	div.exit().remove();
+	
 	div.enter().append("div")
-	    .attr("class", "tooltip")
+	    .classed("tooltip", true)
 	    .attr("id", tooltipId)
 	    .style("opacity", 1e-6)
 	    .html(tooltipText);
 	
+	console.log("creating group element for d.child_dirs=", d.child_dirs);
 	var parent_and_children = g1.selectAll("g.parent_and_children")
-	    .data(d._children)
+	    .data(d.child_dirs)
 	    .enter().append("svg:g");
 
-	parent_and_children.on("mouseover", mouseover)
-	    .on("mouseout", mouseout);
-	
-
-	parent_and_children.filter(function(d) { return d._children; })
+	parent_and_children
 	    .classed("parent_and_children", true)
-	// .on("mouseenter", function(d) {
-	//     console.log("mouse over d:", d);
-	// })
-	// .on("mouseleave", function(d) {
-	//     console.log("mouse left d:", d);
-	// })
+	    .on("mouseover", mouseover)
+	    .on("mouseout", mouseout);
+
+	parent_and_children
 	    .on("click", function(child) {
-		var q = queue()
-		_.forEach(path_data_url_templates, function(n, root_path) {
-		    if(_.startsWith(child.path, root_path)) {
-			url = path_data_url_templates[root_path](child);
-			q.defer(d3.json, url);
-		    }
-		});
-		q.await(function() {
-		    error = _(arguments).shift();
-		    data = arguments;
-		    if(error) {
-			console.log("failure getting json data", error); 
-		    } else {
-			if(_.every(data, _.isObject)) {
-			    _.forEach(data, function(d) {
-				console.log("merging data d", d);
-				//treemap.root = mergeLustreTree(treemap.root, d);
-			    });
-			    //initialDataLoad();
-			} else {
-			    console.log("queue completed but data missing. have data=", data);
-			}
-		    }
-		});
-		
-		transition(child);
+		console.log("clicked child=", child);
+		if(_.size(child.child_dirs) > 0) {
+		    fetchTreemapData(child, treemap, function() {
+			console.log("new data loaded for child=", child);
+			accumulate(child);
+			layout(child);
+		    });
+		    transition(child);
+		} else {
+		    console.log("no children for child=", child, " - not transitioning");
+		}
 	    });
+	
+	// console.log("have treemap.root=", treemap.root);
+	// parent_and_children.filter(function(d) { return d.child_dirs; })
+	//     .classed("parent_and_children", true)
+	//     .on("click", function(child) {
+	// 	console.log("clicked child=", child);
+	// 	fetchTreemapData(child, treemap, function() {
+	// 	    console.log("new data loaded for child=", child);
+	// 	    accumulate(child);
+	// 	    layout(child);
+	// 	});
+	// 	transition(child);
+	//     });
 
 	function tooltipText(d) {
 	    
@@ -451,8 +579,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		.style("opacity", 1e-6);
 	}
 	
+	console.log("creating child rect for parent_and_children=", parent_and_children);
 	parent_and_children.selectAll(".child")
-	    .data(function(d) { return d._children || [d]; })
+	    .data(function(d) { return d.child_dirs || [d]; })
 	    .enter().append("rect")
 	    .attr("class", "child")
 	    .call(treebox)
@@ -525,10 +654,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	y.domain([d.y, d.y + d.dy]);
 	
 	// Enable anti-aliasing during the transition.
-	svg.style("shape-rendering", null);
+	treemap.svg.style("shape-rendering", null);
 	
 	// Draw child nodes on top of parent nodes.
-	svg.selectAll(".depth").sort(function(a, b) { return a.depth - b.depth; });
+	treemap.svg.selectAll(".depth").sort(function(a, b) { return a.depth - b.depth; });
 	
 	// Fade-in entering text.
 	g2.selectAll("text").style("fill-opacity", 0);
@@ -543,7 +672,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
 	// Remove the old node when the transition is finished.
 	t1.remove().each("end", function(d) {
-	    svg.style("shape-rendering", "crispEdges");
+	    treemap.svg.style("shape-rendering", "crispEdges");
 	    transitioning = false;
 	    curg = g2;
 	});
@@ -578,11 +707,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     
-    treemap.layout = treemap_layout;
-    treemap.svg = svg;
-    treemap.grandparent = grandparent;
-    treemap.valueAccessors = valueAccessors;
-
     return treemap;
 }); // treemap module
 
