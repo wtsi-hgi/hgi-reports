@@ -488,14 +488,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	console.log("creating tooltips for d.child_dirs=", d.child_dirs);
 	var div = d3.select("#footer").selectAll("div.tooltip")
 	    .data(d.child_dirs, path);
-	
 	div.exit().remove();
-	
 	div.enter().append("div")
 	    .classed("tooltip", true)
 	    .attr("id", tooltipId)
-	    .style("opacity", 1e-6)
-	    .html(tooltipText);
+	    .style("opacity", 1e-6);
+//	    .html(tooltipText);
 	
 	console.log("creating group element for d.child_dirs=", d.child_dirs);
 	var parent_and_children = g1.selectAll("g.parent_and_children")
@@ -557,10 +555,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	function mouseover(g) {
 	    //console.log("mouseover! path="+g.path);
 	    d3.selectAll("div.tooltip").filter(function(d) {return d.path != g.path;})
+		.html(tooltipText)
 		.transition()
 		.duration(500)
 		.style("opacity", 1e-6);
 	    d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
+		.html(tooltipText)
 		.transition()
 		.duration(500)
 		.style("opacity", 1);
@@ -622,9 +622,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#selectSize").on("change", function() {
 	    sizeKey = this.value;
 	    console.log("sizeKey now "+sizeKey);
-	    initialize(treemap.root);
+	    //	    initialize(treemap.root);
 	    accumulate(treemap.root);
-	    layout(node);
+	    layout(treemap.root)
+//	    layout(node);
 	    curg = display(node);
 	    transition(node);
 	});
@@ -632,8 +633,11 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#selectFill").on("change", function() {
 	    fillKey = this.value;
 	    console.log("fillKey now "+fillKey);
+	    accumulate(treemap.root);
+	    layout(treemap.root)
+//	    layout(node);
 	    curg = display(node);
-	    //    transition(node);
+	    transition(node);
 	});
 	return g1;
     }
