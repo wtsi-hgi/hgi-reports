@@ -157,7 +157,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.style("shape-rendering", "crispEdges");
     
     treemap.grandparent = treemap.svg.append("g")
-	.attr("class", "grandparent");
+	.classed("grandparent", true);
     
     treemap.grandparent.append("rect")
 	.attr("y", -margin.top)
@@ -481,9 +481,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	minmax = calcMinMax(treemap.nodes, treemap.valueAccessors[fillKey]);
 	
+	// var g1 = treemap.svg.insert("g", ".grandparent")
+        //     .datum(d)
+	//     .classed("depth", true);
 	var g1 = treemap.svg.insert("g", ".grandparent")
             .datum(d)
-	    .attr("class", "depth");
+	    .classed("depth", true);
 	
 	console.log("creating tooltips for d.child_dirs=", d.child_dirs);
 	var div = d3.select("#footer").selectAll("div.tooltip")
@@ -583,19 +586,19 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	parent_and_children.selectAll(".child")
 	    .data(function(d) { return d.child_dirs || [d]; })
 	    .enter().append("rect")
-	    .attr("class", "child")
+	    .classed("child", true)
 	    .call(treebox)
 	    .style("fill", fillColor);
 	
 	parent_and_children.append("rect")
-	    .attr("class", "parent")
+	    .classed("parent", true)
 	    .call(treebox)
 	    .style("fill", fillColor);
 	//		.append("title")
 	//		.text(function(d) { return formatNumber(d.value); });
 	
 	var titlesvg = parent_and_children.append("svg")
-	    .attr("class", "parent_title")
+	    .classed("parent_title", true)
 	    .attr("viewBox", "-100 -10 200 20")
 	    .attr("preserveAspectRatio", "xMidYMid meet")
 	    .call(treebox);
