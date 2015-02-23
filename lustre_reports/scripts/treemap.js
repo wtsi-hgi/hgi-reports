@@ -21,6 +21,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	valueAccessors: {
 	    count: function(d) {return 1;}
 	},
+	fillScale: "log",
     };
     
     var defaultSizeKey = "size";
@@ -71,16 +72,36 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
 	var min = minmax.min;
 	var max = minmax.max;
-	if(min > 0) {
-	    min = -1;
+	if(treemap.fillScale == "linear") {
+	    if(min > 0) {
+		min = -1;
+	    }
+	    if(max < 0) {
+		max = 1;
+	    }
+	    return d3.scale.linear()
+		.interpolate(d3.interpolateHsl)
+		.domain([min, min/2, 0, max/2, max])
+		.range([low, lmid, mid, hmid, high]);
+	} else {
+	    if(min <= 0) {
+		min = 0.001;
+	    }
+	    if(max <= 0) {
+		max = 1;
+	    }
+	    var log_min = Math.floor(Math.log(min));
+	    var log_max = Math.ceil(Math.log(max));
+	    var log_range = log_max - log_min;
+	    var log_mid = Math.floor(log_min+(log_range/2));
+	    var log_lmid = Math.floor(log_min+((log_mid-log_min)/2));
+	    var log_hmid = Math.floor(log_max-((log_mid-log_min)/2));
+	    //console.log("colorGen: log domain=", Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max))
+	    return d3.scale.log()
+		.interpolate(d3.interpolateHsl)
+		.domain([Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max)])
+		.range([low, lmid, mid, hmid, high]);
 	}
-	if(max < 0) {
-	    max = 1;
-	}
-	return d3.scale.linear()
-	    .interpolate(d3.interpolateHsl)
-	    .domain([min, min/2, 0, max/2, max])
-	    .range([low, lmid, mid, hmid, high]);
     }
     
     var fillColor = function(d) {
