@@ -62,15 +62,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     var colorGen = function() {
-	//  low = "red";
-	//  mid = "#eeeeee";
-	//  high = "blue";
-	// colors from colorbrewer2.org 5-class RdYlBu
-	low = "#d7191c";
-	lmid = "#fdae61";
-	mid = "#ffffbf";
-	hmid = "#abd9e9";
-	high = "#2c7bb6";
+	// colors from colorbrewer2.org 5-class YlGnBu
+	low =  "#ffffcc";
+	lmid = "#a1dab4";
+	mid =  "#41b6c4";
+	hmid = "#2c7fb8";
+	high = "#253494";
+
 	var min = minmax.min;
 	var max = minmax.max;
 	if(min > 0) {
@@ -81,10 +79,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	}
 	return d3.scale.linear()
 	    .interpolate(d3.interpolateHsl)
-	//    .domain([min, ((max-min)/2)+min, max])
-	//    .range([low, mid, high]);
-	//    .domain([min, 0, max])
-	//    .range([low, mid, high]);
 	    .domain([min, min/2, 0, max/2, max])
 	    .range([low, lmid, mid, hmid, high]);
     }
@@ -269,12 +263,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		console.log("mergeLustreTree: ERROR cannot find subtree for merge - are trees disjoint? (y=", y, " x=", x, " child_dirs=", child_dirs);
 		return merged;
 	    }
-	    // if (subtree.path != y.path) {
-	    //     subtree = _.find(merged.child_dirs, function(child) {return child.path == y.path});
-	    //     if (_.isUndefined(subtree)) {
-	    // 	console.log("mergeLustreTree: deep subtree merging not supported. Cannot continue.");
-	    // 	return merged;
-	    //     }
 	}
 
 	//console.log("mergeLustreTree: subtree merge of y.path=", y.path, " into subtree.path=", subtree.path);
@@ -393,12 +381,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#size_"+sizeKey).attr("selected",1);
 	d3.select("#fill_"+fillKey).attr("selected",1);
 	
- 	//console.log("0: treemap.root.child_dirs=", treemap.root.child_dirs);
-	//console.log("0: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	initialize(treemap.root);
 	accumulate(treemap.root);
- 	//console.log("1: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
-	//console.log("1: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	layout(treemap.root);
 	curg = display(treemap.root);
 	if (_.isUndefined(node)) {
@@ -419,22 +403,11 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     // We also take a snapshot of the original children (_children) to avoid
     // the children being overwritten when when layout is computed.
     function accumulate(d) {
-	//    return (d._children = d.children)
-	//        ? d.value = d.children.reduce(function(p, v) { return p + accumulate(v); }, 0)
-	//        : d.value = sizeValue(d);
-	// if (!d._children) {
-	//     d._children = d.children;
-	// }
 	if (d.child_dirs) {
-	    //	console.log("accumulate: accumulating children of d.name="+d.name)
-	    //        d.value = d.children.reduce(function(p, v) { return p + accumulate(v); }, 0);
-	    //	console.log("accumulate: accumulated total for d.name="+d.name+" is "+d.value);
 	    d.child_dirs.forEach(function(c) {accumulate(c)});
 	    d.value = sizeValue(d);
 	} else {
-	    //	console.log("accumulate: d.name="+d.name+" has no children");
 	    d.value = sizeValue(d);
-	    //	console.log("accumulate: value for d.name="+d.name+" is "+d.value);
 	}
 	return d.value;
     }
@@ -448,11 +421,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     // coordinates. This lets us use a viewport to zoom.
     function layout(d) {
 	if (d.child_dirs) {
-	    //console.log("2: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
-	    //console.log("2: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	    var childNodes = treemap.layout.nodes({child_dirs: d.child_dirs});
-	    //console.log("3: treemap.root.child_dirs[0]=", treemap.root.child_dirs[0]);
-	    //console.log("3: treemap.root.child_dirs[0].child_dirs=", treemap.root.child_dirs[0].child_dirs);
 	    treemap.nodes.push(childNodes);
 	    d.child_dirs.forEach(function(c) {
 		c.x = d.x + c.x * d.dx;
@@ -481,14 +450,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	minmax = calcMinMax(treemap.nodes, treemap.valueAccessors[fillKey]);
 	
-	// var g1 = treemap.svg.insert("g", ".grandparent")
-        //     .datum(d)
-	//     .classed("depth", true);
 	var g1 = treemap.svg.insert("g", ".grandparent")
             .datum(d)
-	    .classed("depth", true);
+	    .classed("depth", true)
+	    .attr("id", depthId);
 	
-	console.log("creating tooltips for d.child_dirs=", d.child_dirs);
+	//console.log("creating tooltips for d.child_dirs=", d.child_dirs);
 	var div = d3.select("#footer").selectAll("div.tooltip")
 	    .data(d.child_dirs, path);
 	div.exit().remove();
@@ -496,9 +463,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .classed("tooltip", true)
 	    .attr("id", tooltipId)
 	    .style("opacity", 1e-6);
-//	    .html(tooltipText);
 	
-	console.log("creating group element for d.child_dirs=", d.child_dirs);
+	//console.log("creating group element for d.child_dirs=", d.child_dirs);
 	var parent_and_children = g1.selectAll("g.parent_and_children")
 	    .data(d.child_dirs)
 	    .enter().append("svg:g");
@@ -522,22 +488,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    console.log("no children for child=", child, " - not transitioning");
 		}
 	    });
-	
-	// console.log("have treemap.root=", treemap.root);
-	// parent_and_children.filter(function(d) { return d.child_dirs; })
-	//     .classed("parent_and_children", true)
-	//     .on("click", function(child) {
-	// 	console.log("clicked child=", child);
-	// 	fetchTreemapData(child, treemap, function() {
-	// 	    console.log("new data loaded for child=", child);
-	// 	    accumulate(child);
-	// 	    layout(child);
-	// 	});
-	// 	transition(child);
-	//     });
 
 	function tooltipText(d) {
-	    
 	    // todo move template generation out
 	    var text_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
 	    //		var text_template = _.template("Path: <%= path %>");
@@ -569,12 +521,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		.style("opacity", 1);
 	}
 	
-	// function mousemove(g) {
-	//     d3.selectAll("div.tooltip").filter(function(d) {return d.path == g.path;})
-	// 	.style("left", (d3.event.pageX - 34) + "px")
-	// 	.style("top", (d3.event.pageY - 12) + "px");
-	// }
-	
 	function mouseout() {
 	    var div = d3.selectAll("div.tooltip");
 	    div.transition()
@@ -594,23 +540,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .classed("parent", true)
 	    .call(treebox)
 	    .style("fill", fillColor);
-	//		.append("title")
-	//		.text(function(d) { return formatNumber(d.value); });
 	
 	var titlesvg = parent_and_children.append("svg")
 	    .classed("parent_title", true)
 	    .attr("viewBox", "-100 -10 200 20")
 	    .attr("preserveAspectRatio", "xMidYMid meet")
 	    .call(treebox);
-
-	// titlesvg.append("rect")
-	//     .attr("x", -100)
-	//     .attr("y", -10)
-	//     .attr("width", 200)
-	//     .attr("height", 20)
-	//     .style("stroke-width", 1)
-	//     .style("stroke", "rgb(255,0,0)")
-	//     .style("fill-opacity", 0);
 
 	titlesvg.append("text")
 	    .attr("font-size", 16)
@@ -624,22 +559,17 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	d3.select("#selectSize").on("change", function() {
 	    sizeKey = this.value;
-	    console.log("sizeKey now "+sizeKey);
-	    //	    initialize(treemap.root);
+	    console.log("sizeKey changed to "+sizeKey);
 	    accumulate(treemap.root);
 	    layout(treemap.root)
-//	    layout(node);
-	    curg = display(node);
 	    transition(node);
 	});
 	
 	d3.select("#selectFill").on("change", function() {
 	    fillKey = this.value;
-	    console.log("fillKey now "+fillKey);
+	    console.log("fillKey changed to "+fillKey);
 	    accumulate(treemap.root);
 	    layout(treemap.root)
-//	    layout(node);
-	    curg = display(node);
 	    transition(node);
 	});
 	return g1;
@@ -699,9 +629,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     function name(d) {
-	//    return d.parent
-	//        ? name(d.parent) + "/" + d.name
-	//        : "/" + d.name;
 	return d.name;
     }
     
@@ -711,6 +638,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     function tooltipId(d) {
 	return "tooltip:"+path(d);
+    }
+    
+    function depthId(d) {
+	return "depth:"+path(d);
     }
     
     
