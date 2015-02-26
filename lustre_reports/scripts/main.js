@@ -8,6 +8,6 @@ require.config({
 
 require(["treemap"],
 	function(treemap) {
-	    console.log("treemap loaded");
+	    console.log("treemap module loaded: ", treemap);
 	}
        );

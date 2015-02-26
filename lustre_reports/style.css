@@ -19,6 +19,11 @@ body {
   text-shadow: 0 1px 0 #fff;
 }
 
+.select_label {
+    font-size: 60%;
+    font-weight: 50%;
+}
+
 #header.inverted, #footer.inverted {
   color: #fff;
   text-shadow: 0 1px 4px #000;
