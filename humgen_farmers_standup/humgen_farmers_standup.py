@@ -5,7 +5,6 @@ import pyratemp
 import ldap
 
 import numpy as np
-import matplotlib.pyplot as plot
 import wand.image
 # generate a weekly farm stats report for farmer's standup
 # calls out to java/jdbc program to run some queries
