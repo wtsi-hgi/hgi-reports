@@ -34,7 +34,53 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    user: "*",
 	    tag: "*"
 	},
-	loading: false
+	loading: false,
+	color: undefined,
+	genColorScale: function(nodes, fillAccessor) {
+	    // colors from colorbrewer2.org 5-class YlGnBu
+	    low =  "#ffffcc";
+	    lmid = "#a1dab4";
+	    mid =  "#41b6c4";
+	    hmid = "#2c7fb8";
+	    high = "#253494";
+	    
+	    var min = d3.min(nodes, fillAccessor);
+	    var max = d3.max(nodes, fillAccessor);
+	    //console.log("genColorScale: min=", min, " max=", max, " for nodes=", nodes, " using fillAccessor=", fillAccessor);
+
+	    if(treemap.fillScale == "linear") {
+		if(min > 0) {
+		    min = -1;
+		}
+		if(max < 0) {
+		    max = 1;
+		}
+		return d3.scale.linear()
+		    .interpolate(d3.interpolateHsl)
+		    .domain([min, min/2, 0, max/2, max])
+		    .range([low, lmid, mid, hmid, high])
+	            .nice();
+	    } else {
+		if(min <= 0) {
+		    min = 0.001;
+		}
+		if(max <= 0) {
+		    max = 1;
+		}
+		var log_min = Math.floor(Math.log(min));
+		var log_max = Math.ceil(Math.log(max));
+		var log_range = log_max - log_min;
+		var log_mid = Math.floor(log_min+(log_range/2));
+		var log_lmid = Math.floor(log_min+((log_mid-log_min)/2));
+		var log_hmid = Math.floor(log_max-((log_mid-log_min)/2));
+		//console.log("genColorScale: log domain=", Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max))
+		return d3.scale.log()
+		    .interpolate(d3.interpolateHsl)
+		    .domain([Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max)])
+		    .range([low, lmid, mid, hmid, high])
+	            .nice();
+	    }
+	}
     };
     
     var margin = {top: 20, right: 0, bottom: 20, left: 0},
@@ -71,67 +117,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     treemap.fillAccessor = getValueAccessor(treemap.fill);
     console.log("treemap.fillAccessor set to: ", treemap.fillAccessor);
-
-    var minmax = new Object();
-    
-    var getMinvalue = function() {
-	console.log("getMinvalue returning min="+minmax.min);
-	return minmax.min;
-    }
-    
-    var getMaxvalue = function() {
-	console.log("getMaxvalue returning max="+minmax.max);
-	return minmax.max;
-    }
-    
-    var colorGen = function() {
-	// colors from colorbrewer2.org 5-class YlGnBu
-	low =  "#ffffcc";
-	lmid = "#a1dab4";
-	mid =  "#41b6c4";
-	hmid = "#2c7fb8";
-	high = "#253494";
-
-	var min = minmax.min;
-	var max = minmax.max;
-	if(treemap.fillScale == "linear") {
-	    if(min > 0) {
-		min = -1;
-	    }
-	    if(max < 0) {
-		max = 1;
-	    }
-	    return d3.scale.linear()
-		.interpolate(d3.interpolateHsl)
-		.domain([min, min/2, 0, max/2, max])
-		.range([low, lmid, mid, hmid, high])
-	        .nice();
-	} else {
-	    if(min <= 0) {
-		min = 0.001;
-	    }
-	    if(max <= 0) {
-		max = 1;
-	    }
-	    var log_min = Math.floor(Math.log(min));
-	    var log_max = Math.ceil(Math.log(max));
-	    var log_range = log_max - log_min;
-	    var log_mid = Math.floor(log_min+(log_range/2));
-	    var log_lmid = Math.floor(log_min+((log_mid-log_min)/2));
-	    var log_hmid = Math.floor(log_max-((log_mid-log_min)/2));
-	    //console.log("colorGen: log domain=", Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max))
-	    return d3.scale.log()
-		.interpolate(d3.interpolateHsl)
-		.domain([Math.pow(10, log_min), Math.pow(10, log_lmid), Math.pow(10, log_mid), Math.pow(10, log_hmid), Math.pow(10, log_max)])
-		.range([low, lmid, mid, hmid, high])
-	        .nice();
-	}
-    }
     
     var fillColor = function(d) {
-	var color = colorGen();
 	var value = treemap.fillAccessor(d);
-	var hsl = color(value);
+	var hsl = treemap.color(value);
 	//console.log("fillColor: value=", value, " hsl=", hsl, " for d=", d);
 	return hsl;
     }
@@ -249,18 +238,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	}
     }
     
-    var calcMinMax = function(nodes, f) {
-	var myminmax = {};
-	myminmax.min = d3.min(nodes, f);
-	myminmax.max = d3.max(nodes, f);
-	return myminmax;
-    }
-    
     treemap.layout = d3.layout.treemap()
 	.children(function(d, depth) {return depth ? null : d.child_dirs; })
 //	.size([960, 500])
 	.sort(function(a, b) {return a.value - b.value; })
-	.ratio(height / width * 0.5 * (1 + Math.sqrt(5)))
+//	.ratio(height / width * 0.5 * (1 + Math.sqrt(5)))
+//	.ratio(width/height * 0.5 * (1 + Math.sqrt(5)))
 	.round(false);
     
     treemap.svg = d3.select("#chart").append("svg")
@@ -286,6 +269,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("dy", ".75em");
 
     var path_data_url_templates = {
+	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
@@ -332,11 +316,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		} else if(error.status == 0) {
 		    console.log("CORS error, possibly from shibboleth redirect?");
 		    console.log(error.getAllResponseHeaders());
+		    treemap.loading = false;
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		} else {
 		    console.log("Unexpected error ", error.readyState,  error.response, error.responseText, error.responseType, error.responseXML, error.status, error.statusText, error.timeout, error.withCredentials);
 		    console.log(error.getAllResponseHeaders());
+		    treemap.loading = false;
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		}
@@ -583,6 +569,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	initialize(treemap.root);
 	layout(treemap.root);
+	// have to generate initial color scale after layout, as before that treemap.nodes is unset
+	treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
+	console.log("treemap.color generator set to: ", treemap.color);
+
 	curg = display(treemap.root);
 	if (_.isUndefined(node)) {
 	    console.log("setting node to treemap.root");
@@ -666,7 +656,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    })
 	    .select("text")
 	    .text(path(d));
-	minmax = calcMinMax(treemap.nodes, treemap.fillAccessor);
+	//minmax = calcMinMax(treemap.nodes, treemap.fillAccessor);
 
 	var g1 = treemap.svg.insert("g", ".grandparent")
             .datum(d)
@@ -706,9 +696,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			console.log("new data loaded for child=", child);
 			layout(child);
 		    });
-		    console.log("before transition, treemap.root=", treemap.root)
+
+		    // regenerate color scale based on new layout
+		    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
+
+//		    console.log("before transition, treemap.root=", treemap.root)
 		    transition(child);
-		    console.log("after transition, treemap.root=", treemap.root)
+//		    console.log("after transition, treemap.root=", treemap.root)
 		} else {
 		    console.log("no children for child=", child, " - not transitioning");
 		}
@@ -793,6 +787,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#selectFillMetric").on("change", function() {
 	    treemap.fill.metric = this.value;
 	    treemap.fillAccessor = getValueAccessor(treemap.fill);
+	    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
 	    console.log("fillMetric changed to "+fillMetric+ " treemap.fillAccessor now ", treemap.fillAccessor);
 	    layout(treemap.root)
 	    transition(node);
