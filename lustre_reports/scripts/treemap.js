@@ -134,17 +134,22 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	return value;
     }
 
-    function displayKey(metric, group, user, tag) {
-	var display_key = metric;
-	if (display_key == "ctime") {
-	    display_key = "Cost since creation";
-	} else if (display_key == "atime") {
-	    display_key = "Cost since last accessed";
-	} else if (display_key == "mtime") {
-	    display_key = "Cost since last modified";
+    function displayMetric(metric) {
+	var display = metric;
+	if (display == "ctime") {
+	    display = "Cost since creation";
+	} else if (display == "atime") {
+	    display = "Cost since last accessed";
+	} else if (display == "mtime") {
+	    display = "Cost since last modified";
 	} else {
-	    display_key = _.capitalize(display_key);
+	    display = _.capitalize(display);
 	}
+	return display;
+    }
+
+    function displayKey(metric, group, user, tag) {
+	var display_key = displayMetric(metric);
 	var limits = [];
 	if (!_.isUndefined(group) && group != "*") {
 	    limits.push("g:" + group);
@@ -269,6 +274,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("dy", ".75em");
 
     var path_data_url_templates = {
+	//	"/lustre/scratchtest": _.template("../api/lustretree/scratchtest?depth=2&path=<%= path %>"),
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
@@ -538,16 +544,25 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	var metric_keys = _.map(treemap.root.data, function(v, k) { return k; });
 	console.log("initialDataLoad: metric_keys=", metric_keys);
 
-	// var szM = d3.select("#selectSizeMetric option")
-	//     .data(metric_keys, function(d) {
-	// 	console.log("selectsizemetric data key returning d=", d);
-	// 	return d;});
-	// szM.exit().remove();
-	// szM.enter().append("option");
+	var szM = d3.select("#selectSizeMetric").selectAll("option")
+	    .data(metric_keys);
+	szM.exit().remove();
+	szM.enter().append("option")
+	    .attr("value", function(d) {return d;})
+	    .attr("id", function(d) {return "size_metric_"+d;})
+	    .text(displayMetric);
+	szM.filter(function(d) {return d == treemap.size.metric;})
+	    .property("selected", true);
 
-	    // .attr("value", function(d) {return d;})
-	    // .attr("id", function(d) {return "size_metric_"+d;})
-	    // .text(function(d) {return d;});
+	var flM = d3.select("#selectFillMetric").selectAll("option")
+	    .data(metric_keys);
+	flM.exit().remove();
+	flM.enter().append("option")
+	    .attr("value", function(d) {return d;})
+	    .attr("id", function(d) {return "fill_metric_"+d;})
+	    .text(displayMetric);
+	flM.filter(function(d) {return d == treemap.fill.metric;})
+	    .property("selected", true);
 
 //	_.each(treemap.root.data, function(value, metric){
 	    // treemap.valueAccessors[key] = function(d) { 
@@ -713,7 +728,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    var text_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
 	    //		var text_template = _.template("Path: <%= path %>");
 //TODO fixme for multiselect
-	    var text_items = ["path", "size", "count", "ctime", "atime"]; //, sizeKey, fillKey];
+	    var text_items = ["path", "size", "count", "ctime", "atime", "mtime"]; //, sizeKey, fillKey];
 	    var text_data = {
 		"labels": _.map(text_items, function(item) {
 		    //console.log("for item: ", item, " have key:", displayKey(item));
@@ -779,18 +794,18 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	d3.select("#selectSizeMetric").on("change", function() {
 	    treemap.size.metric = this.value;
 	    treemap.sizeAccessor = getValueAccessor(treemap.size);
-	    console.log("sizeMetric changed to "+sizeMetric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
-	    layout(treemap.root)
-	    transition(node);
+	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
+	    layout(treemap.root);
+	    transitionValues(node);
 	});
 	
 	d3.select("#selectFillMetric").on("change", function() {
 	    treemap.fill.metric = this.value;
 	    treemap.fillAccessor = getValueAccessor(treemap.fill);
 	    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
-	    console.log("fillMetric changed to "+fillMetric+ " treemap.fillAccessor now ", treemap.fillAccessor);
-	    layout(treemap.root)
-	    transition(node);
+	    console.log("treemap.fill.metric changed to "+treemap.fill.metric+ " treemap.fillAccessor now ", treemap.fillAccessor);
+	    layout(treemap.root);
+	    transitionValues(node);
 	});
 	return g1;
     }
@@ -799,7 +814,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     function transition(d) {
 	//	    console.log("transition!");
 	node = d;
-	if (transitioning || !d) return;
+	if (transitioning || !d) {
+	    console.log("already transitioning, refusing to cut to new transition");
+	    return;
+	}
 	transitioning = true;
 	
 	var g2 = display(d),
@@ -824,6 +842,52 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	t2.selectAll(".parent_title").call(treebox);
 	t1.selectAll("text").style("fill-opacity", 0);
 	t2.selectAll("text").style("fill-opacity", 1);
+	t1.selectAll("rect").call(treebox).style("fill", fillColor);
+	t2.selectAll("rect").call(treebox).style("fill", fillColor);
+
+	// Remove the old node when the transition is finished.
+	t1.remove().each("end", function(d) {
+	    treemap.svg.style("shape-rendering", "crispEdges");
+	    transitioning = false;
+	    curg = g2;
+	});
+	
+    }
+
+    // transition the values only (i.e. on size change)
+    function transitionValues(d) {
+	//	    console.log("transition!");
+	if (transitioning || !d) {
+	    console.log("already transitioning, refusing to cut to new transition");
+	    return;
+	}
+	transitioning = true;
+	
+	var g2 = display(d);
+	transitioning = false;
+	return;
+	console.log("have display g2: ", g2, " beginning transition");
+        var t1 = curg.transition().duration(750);
+        var t2 = g2.transition().duration(750);
+	
+	// Update the domain only after entering new elements.
+	x.domain([d.x, d.x + d.dx]);
+	y.domain([d.y, d.y + d.dy]);
+	
+	// Enable anti-aliasing during the transition.
+	treemap.svg.style("shape-rendering", null);
+	
+	// Draw child nodes on top of parent nodes.
+	treemap.svg.selectAll(".depth").sort(function(a, b) { return a.depth - b.depth; });
+	
+	// Fade-in entering text.
+//	g2.selectAll("text").style("fill-opacity", 0);
+	
+	// Transition to the new view.
+	t1.selectAll(".parent_title").call(treebox);
+	t2.selectAll(".parent_title").call(treebox);
+//	t1.selectAll("text").style("fill-opacity", 0);
+//	t2.selectAll("text").style("fill-opacity", 1);
 	t1.selectAll("rect").call(treebox).style("fill", fillColor);
 	t2.selectAll("rect").call(treebox).style("fill", fillColor);
 
