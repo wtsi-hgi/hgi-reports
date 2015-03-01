@@ -544,25 +544,45 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	var metric_keys = _.map(treemap.root.data, function(v, k) { return k; });
 	console.log("initialDataLoad: metric_keys=", metric_keys);
 
-	var szM = d3.select("#selectSizeMetric").selectAll("option")
-	    .data(metric_keys);
+	var szM = d3.select("#selectSizeMetricForm").selectAll("span")
+	    .data(metric_keys, function(d) {return d;});
 	szM.exit().remove();
-	szM.enter().append("option")
+	szM.enter().append("span")
+	    .attr("id", function(d) {return "size_metric_span_"+d;});
+	
+	var szMinput = szM.append("input")
+	    .attr("type", "radio")
+	    .attr("name", "size_metric")
 	    .attr("value", function(d) {return d;})
-	    .attr("id", function(d) {return "size_metric_"+d;})
+	    .attr("id", function(d) {return "size_metric_"+d;});
+	
+	szMinput.filter(function(d) {return d == treemap.size.metric;})
+	    .property("checked", true);
+	
+	var szMlabel = szM.append("span")
 	    .text(displayMetric);
-	szM.filter(function(d) {return d == treemap.size.metric;})
-	    .property("selected", true);
-
-	var flM = d3.select("#selectFillMetric").selectAll("option")
-	    .data(metric_keys);
+	
+	szMlabel.append("br");
+	
+	var flM = d3.select("#selectFillMetricForm").selectAll("span")
+	    .data(metric_keys, function(d) {return d;});
 	flM.exit().remove();
-	flM.enter().append("option")
+	flM.enter().append("span")
+	    .attr("id", function(d) {return "fill_metric_span_"+d;});
+
+	var flMinput = flM.append("input")
+	    .attr("type", "radio")
+	    .attr("name", "fill_metric")
 	    .attr("value", function(d) {return d;})
-	    .attr("id", function(d) {return "fill_metric_"+d;})
+	    .attr("id", function(d) {return "fill_metric_"+d;});
+	
+	flMinput.filter(function(d) {return d == treemap.fill.metric;})
+	    .property("checked", true);
+
+	var flMlabel = flM.append("span")
 	    .text(displayMetric);
-	flM.filter(function(d) {return d == treemap.fill.metric;})
-	    .property("selected", true);
+	
+	flMlabel.append("br");
 
 //	_.each(treemap.root.data, function(value, metric){
 	    // treemap.valueAccessors[key] = function(d) { 
@@ -791,7 +811,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .style("text-anchor", "middle")
 	    .text(function(d) { return name(d); });
 	
-	d3.select("#selectSizeMetric").on("change", function() {
+	d3.selectAll("#selectSizeMetricForm input").on("change", function() {
 	    treemap.size.metric = this.value;
 	    treemap.sizeAccessor = getValueAccessor(treemap.size);
 	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
@@ -799,7 +819,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    transitionValues(node);
 	});
 	
-	d3.select("#selectFillMetric").on("change", function() {
+	d3.selectAll("#selectFillMetricForm input").on("change", function() {
 	    treemap.fill.metric = this.value;
 	    treemap.fillAccessor = getValueAccessor(treemap.fill);
 	    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);

@@ -6,7 +6,7 @@ body {
   font-family: "Helvetica Neue", Helvetica;
 }
 
-#chart, #header, #footer {
+#chart, #header, #filters, #footer {
   position: absolute;
   top: 0;
 }
@@ -19,7 +19,15 @@ body {
   text-shadow: 0 1px 0 #fff;
 }
 
-.select_label {
+#filters {
+  z-index: 1;
+  display: block;
+  font-size: 24px;
+  font-weight: 300;
+  text-shadow: 0 1px 0 #fff;
+}
+
+form, .select_label {
     font-size: 60%;
     font-weight: 50%;
 }
@@ -91,6 +99,12 @@ a:hover {
   width: 960px;
   height: 500px;
   background: #ddd;
+}
+
+#filters {
+  min-width: 10em;
+  height: 500px;
+  left: 960px;
 }
 
 #footer {

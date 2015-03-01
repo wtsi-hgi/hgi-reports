@@ -8,38 +8,54 @@
     <div id="body">
       <div id="chart">
       </div>
-      <div id="footer">
-        <div id="selectSizeForm">
-	  <span class="select_label_head">Box area:</span>
-	  <span class="select_label">Metric:</span>
-	  <select id="selectSizeMetric">
-	  </select>
-	  <span class="select_label">Group owner:</span>
-	  <select id="selectSizeGroup">
-	  </select>
-	  <span class="select_label">User owner:</span>
-	  <select id="selectSizeUser">
-	  </select>
-	  <span class="select_label">Tag:</span>
-	  <select id="selectSizeTag">
-	  </select>
+      <div id="filters">
+        <div id="selectSize">
+	  <div id="selectSizeMetric">
+	    <span class="select_label_head">Area:</span><br/>
+	    <form id="selectSizeMetricForm">
+	    </form>
+	  </div>
+	  <div id="selectSizeGroup">
+	    <span class="select_label">Group owner:</span>
+	    <select id="selectSizeGroupForm">
+	    </select>
+	  </div>
+	  <div id="selectSizeUser">
+	    <span class="select_label">User owner:</span>
+	    <select id="selectSizeUserForm">
+	    </select>
+	  </div>
+	  <div id="selectSizeTag">
+	    <span class="select_label">Tag:</span>
+	    <select id="selectSizeTagForm">
+	    </select>
+	  </div>
 	</div>
+	<hr/>
         <div id="selectFillForm">
-	  <span class="select_label_head">Fill colour:</span>
-	  <span class="select_label">Metric:</span>
-	  <select id="selectFillMetric">
-	  </select>
-	  <span class="select_label">Group owner:</span>
-	  <select id="selectFillGroup">
-	  </select>
-	  <span class="select_label">User owner:</span>
-	  <select id="selectFillUser">
-	  </select>
-	  <span class="select_label">Tag:</span>
-	  <select id="selectFillTag">
-	  </select>
+	  <div id="selectFillMetric">
+	    <span class="select_label_head">Colour:</span><br/>
+	    <form id="selectFillMetricForm">
+	    </form>
+	  </div>
+	  <div id="selectFillGroup">
+	    <span class="select_label">Group owner:</span>
+	    <select id="selectFillGroupForm">
+	    </select>
+	  </div>
+	  <div id="selectFillUser">
+	    <span class="select_label">User owner:</span>
+	    <select id="selectFillUserForm">
+	    </select>
+	  </div>
+	  <div id="selectFillTag">
+	    <span class="select_label">Tag:</span>
+	    <select id="selectFillTagForm">
+	    </select>
+	  </div>
 	</div>
       </div>
+      <div id="footer"></div>
     </div>
 <script data-main="scripts/main" src="scripts/require.js"></script>
 <!--
