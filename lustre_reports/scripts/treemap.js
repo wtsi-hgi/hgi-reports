@@ -285,10 +285,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("dy", ".75em");
 
     var path_data_url_templates = {
-	"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
-	//"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
-	//"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
-	//"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
+	//"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
+	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
+	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
+	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
 
     function startLoading() {
@@ -866,7 +866,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    };
 		}),
 	    };
-	    console.log("running template");
 	    var text = text_template(text_data);
 	    //console.log("generated tooltiptext for d:", d, " text: ", text);
 
