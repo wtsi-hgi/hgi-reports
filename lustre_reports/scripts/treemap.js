@@ -280,7 +280,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     var path_data_url_templates = {
 	//	"/lustre/scratchtest": _.template("../api/lustretree/scratchtest?depth=2&path=<%= path %>"),
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
-	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
+//	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
 
@@ -778,7 +778,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
 		    //console.log("clicked grandparent=", d);
 		    //console.log("grandparent clicked d.path="+d.path);
-		    transition(d);
+		    transition(d, 250);
 		} else {
 		    console.log("grandparent undefined");
 		}
@@ -833,7 +833,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    setFilterOptions(child, treemap.fill, "fill");
 		    
 		    // console.log("before transition, treemap.root=", treemap.root)
-		    transition(child);
+		    transition(child, 750);
 //		    console.log("after transition, treemap.root=", treemap.root)
 		} else {
 		    console.log("no children for child=", child, " - not transitioning");
@@ -914,7 +914,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
 	    setFilterOptions(node, treemap.size, "size");
 	    layout(treemap.root);
-	    transitionValues(node);
+	    transitionValues(node, 750);
 	});
 	
 	d3.selectAll("#select_fill_metric_form input").on("change", function() {
@@ -924,14 +924,17 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    console.log("treemap.fill.metric changed to "+treemap.fill.metric+ " treemap.fillAccessor now ", treemap.fillAccessor);
 	    setFilterOptions(node, treemap.fill, "fill");
 	    layout(treemap.root);
-	    transitionValues(node);
+	    transitionValues(node, 750);
 	});
 	return g1;
     }
     
     
-    function transition(d) {
+    function transition(d, time) {
 	//	    console.log("transition!");
+	if (_.isUndefined(time)) {
+	    time = 750;
+	}
 	node = d;
 	if (transitioning || !d) {
 	    console.log("already transitioning, refusing to cut to new transition");
@@ -940,8 +943,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	transitioning = true;
 	
 	var g2 = display(d),
-        t1 = curg.transition().duration(750),
-        t2 = g2.transition().duration(750);
+        t1 = curg.transition().duration(time),
+        t2 = g2.transition().duration(time);
 	
 	// Update the domain only after entering new elements.
 	x.domain([d.x, d.x + d.dx]);
@@ -974,7 +977,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
 
     // transition the values only (i.e. on size change)
-    function transitionValues(d) {
+    function transitionValues(d, time) {
+	if (_.isUndefined(time)) {
+	    time = 750;
+	}
 	//	    console.log("transition!");
 	if (transitioning || !d) {
 	    console.log("already transitioning, refusing to cut to new transition");
@@ -986,8 +992,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	transitioning = false;
 	return;
 	console.log("have display g2: ", g2, " beginning transition");
-        var t1 = curg.transition().duration(750);
-        var t2 = g2.transition().duration(750);
+        var t1 = curg.transition().duration(time);
+        var t2 = g2.transition().duration(time);
 	
 	// Update the domain only after entering new elements.
 	x.domain([d.x, d.x + d.dx]);
