@@ -152,21 +152,34 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	return display;
     }
 
-    function displayKey(metric, group, user, tag) {
-	var display_key = displayMetric(metric);
+    function displayFilters(filters) {
+	var display_filters = "";
+	if (_.isUndefined(filters)) {
+	    filters = new Object();
+	    filters.group = "*";
+	    filters.user = "*";
+	    filters.tag = "*";
+	}
 	var limits = [];
-	if (!_.isUndefined(group) && group != "*") {
-	    limits.push("g:" + group);
+	if (!_.isUndefined(filters.group) && filters.group != "*") {
+	    limits.push("g:" + filters.group);
 	}
-	if (!_.isUndefined(user) && user != "*") {
-	    limits.push("u:" + user);
+	if (!_.isUndefined(filters.user) && filters.user != "*") {
+	    limits.push("u:" + filters.user);
 	}
-	if (!_.isUndefined(tag) && tag != "*") {
-	    limits.push("t:" + tag);
+	if (!_.isUndefined(filters.tag) && filters.tag != "*") {
+	    limits.push("t:" + filters.tag);
 	}
+	
 	if (limits.length > 0) {
-	    display_key += " ("+limits.join(" & ")+")";
+	    display_filters = " ("+limits.join(" & ")+")";
 	}
+	return display_filters;
+    }
+    
+    function displayKey(metric, filters) {
+	var display_key = displayMetric(metric);
+	display_key += displayFilters(filters);
 	return display_key;
     }
     
@@ -839,12 +852,13 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
 	function tooltipText(d) {
 	    // todo move template generation out
-	    var text_template = _.template("<table><caption><%- path %></caption><tr><th>Metric</th><th>Unfiltered</th><th>Filtered as area</th><th>Filtered as colour</th></td><% _.forEach(labels, function(label) { %><tr><td><%- label.key %></td><td><%- label.value %></td><td><%- label.areavalue %></td><td><%- label.fillvalue %></td></tr><% }); %></table>");
+	    var text_template = _.template("<table><caption><%- path %></caption><tr><th>Metric</th><th>Total</th><% if(area_filter_label != '') { %><th>Filtered: <%- area_filter_label %></th><% } %><% if(fill_filter_label != '') { %><th>Filtered: <%- fill_filter_label %></th><% } %></tr><% _.forEach(labels, function(label) { %><tr><td><%- label.key %></td><td><%- label.value %></td><% if(area_filter_label != '') { %><td><%- label.areavalue %></td><% } %><% if(fill_filter_label != '') { %><td><%- label.fillvalue %></td><% } %></tr><% }); %></table>");
 	    //		var text_template = _.template("Path: <%= path %>");
-//TODO fixme for multiselect
 	    var text_items = ["size", "count", "ctime", "atime", "mtime"]; //, sizeKey, fillKey];
 	    var text_data = {
 		"path": displayValue(d, "path"),
+		"area_filter_label": displayFilters(treemap.size),
+		"fill_filter_label": displayFilters(treemap.fill),
 		"labels": _.map(text_items, function(item) {
 		    //console.log("for item: ", item, " have key:", displayKey(item));
 		    return { 
@@ -855,6 +869,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    };
 		}),
 	    };
+	    console.log("running template");
 	    var text = text_template(text_data);
 	    //console.log("generated tooltiptext for d:", d, " text: ", text);
 
