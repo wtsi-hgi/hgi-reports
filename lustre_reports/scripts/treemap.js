@@ -221,21 +221,18 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	}
     }
 
-    function displayValue(d, metric, group, user, tag) {
+    function displayValue(d, metric, filters) {
 	if (_.isUndefined(metric)) {
 	    console.log("displayValue: ERROR metric undefined for d=", d);
 	    return "ERROR";
 	}
-	if (_.isUndefined(group)) {
-	    group = "*";
+	if (_.isUndefined(filters)) {
+	    filters = new Object();
+	    filters.group = "*";
+	    filters.user = "*";
+	    filters.tag = "*";
 	}
-	if (_.isUndefined(user)) {
-	    user = "*";
-	} 
-	if (_.isUndefined(tag)) {
-	    tag = "*";
-	}
-	var value = valueAccessor(d, metric, group, user, tag);
+	var value = valueAccessor(d, metric, filters.group, filters.user, filters.tag);
 	if (/^size$/.exec(metric)) {
 	    return bytes_to_human_readable_string(value);
 	} else if(/time$/.exec(metric)) { // really cost - TODO: fix server to say "atime_cost" etc
@@ -674,8 +671,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		treemap.fillAccessor = getValueAccessor(treemap[property]);
 	    }
 	    setFilterOptions(node, treemap[property], property);
-	    layout(treemap.root);
-	    transitionValues(node);
+	    layout(node);
+	    transition(node);
 	});
 
     }
@@ -842,14 +839,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
 	function tooltipText(d) {
 	    // todo move template generation out
-	    var text_template = _.template("<dl><% _.forEach(labels, function(label) { %><dt><%- label.key %></dt><dd><%- label.value %></dd><% }); %></dl>");
+	    var text_template = _.template("<table><caption><%- path %></caption><tr><th>Metric</th><th>Unfiltered</th><th>Filtered as area</th><th>Filtered as colour</th></td><% _.forEach(labels, function(label) { %><tr><td><%- label.key %></td><td><%- label.value %></td><td><%- label.areavalue %></td><td><%- label.fillvalue %></td></tr><% }); %></table>");
 	    //		var text_template = _.template("Path: <%= path %>");
 //TODO fixme for multiselect
-	    var text_items = ["path", "size", "count", "ctime", "atime", "mtime"]; //, sizeKey, fillKey];
+	    var text_items = ["size", "count", "ctime", "atime", "mtime"]; //, sizeKey, fillKey];
 	    var text_data = {
+		"path": displayValue(d, "path"),
 		"labels": _.map(text_items, function(item) {
 		    //console.log("for item: ", item, " have key:", displayKey(item));
-		    return {key: displayKey(item), value: displayValue(d, item)};
+		    return { 
+			key: displayKey(item), 
+			value: displayValue(d, item),
+			areavalue: displayValue(d, item, treemap.size),
+			fillvalue: displayValue(d, item, treemap.fill),
+		    };
 		}),
 	    };
 	    var text = text_template(text_data);
@@ -913,8 +916,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    treemap.sizeAccessor = getValueAccessor(treemap.size);
 	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
 	    setFilterOptions(node, treemap.size, "size");
-	    layout(treemap.root);
-	    transitionValues(node, 750);
+	    layout(node);
+	    transition(node, 750);
 	});
 	
 	d3.selectAll("#select_fill_metric_form input").on("change", function() {
@@ -923,8 +926,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    treemap.color = treemap.genColorScale(node, treemap.fillAccessor);
 	    console.log("treemap.fill.metric changed to "+treemap.fill.metric+ " treemap.fillAccessor now ", treemap.fillAccessor);
 	    setFilterOptions(node, treemap.fill, "fill");
-	    layout(treemap.root);
-	    transitionValues(node, 750);
+	    layout(node);
+	    transition(node, 750);
 	});
 	return g1;
     }
@@ -976,55 +979,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
     }
 
-    // transition the values only (i.e. on size change)
-    function transitionValues(d, time) {
-	if (_.isUndefined(time)) {
-	    time = 750;
-	}
-	//	    console.log("transition!");
-	if (transitioning || !d) {
-	    console.log("already transitioning, refusing to cut to new transition");
-	    return;
-	}
-	transitioning = true;
-	
-	var g2 = display(d);
-	transitioning = false;
-	return;
-	console.log("have display g2: ", g2, " beginning transition");
-        var t1 = curg.transition().duration(time);
-        var t2 = g2.transition().duration(time);
-	
-	// Update the domain only after entering new elements.
-	x.domain([d.x, d.x + d.dx]);
-	y.domain([d.y, d.y + d.dy]);
-	
-	// Enable anti-aliasing during the transition.
-	treemap.svg.style("shape-rendering", null);
-	
-	// Draw child nodes on top of parent nodes.
-	treemap.svg.selectAll(".depth").sort(function(a, b) { return a.depth - b.depth; });
-	
-	// Fade-in entering text.
-//	g2.selectAll("text").style("fill-opacity", 0);
-	
-	// Transition to the new view.
-	t1.selectAll(".parent_title").call(treebox);
-	t2.selectAll(".parent_title").call(treebox);
-//	t1.selectAll("text").style("fill-opacity", 0);
-//	t2.selectAll("text").style("fill-opacity", 1);
-	t1.selectAll("rect").call(treebox).style("fill", fillColor);
-	t2.selectAll("rect").call(treebox).style("fill", fillColor);
-
-	// Remove the old node when the transition is finished.
-	t1.remove().each("end", function(d) {
-	    treemap.svg.style("shape-rendering", "crispEdges");
-	    transitioning = false;
-	    curg = g2;
-	});
-	
-    }
-    
     function textbox(text) {
 	text.attr("x", function(d) { return x(d.x) + 6; })
 	    .attr("y", function(d) { return y(d.y) + 6; });
