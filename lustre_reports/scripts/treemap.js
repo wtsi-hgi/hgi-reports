@@ -109,17 +109,17 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var curg; // current g element
 
-    function getValueAccessor(params) {
+    function getValueAccessor(metric, filters) {
 	return function(d) {
 	    //console.log("calling valueAccessor on d=", d, " with metric=", params.metric, " group=", params.group, " user=", params.user, " tag=", params.tag);
-	    return valueAccessor(d, params.metric, params.group, params.user, params.tag);
+	    return valueAccessor(d, metric, filters);
 	}
     }
 
-    treemap.sizeAccessor = getValueAccessor(treemap.size);
+    treemap.sizeAccessor = getValueAccessor(treemap.size.metric, treemap.size);
     console.log("treemap.sizeAccessor set to: ", treemap.sizeAccessor);
 
-    treemap.fillAccessor = getValueAccessor(treemap.fill);
+    treemap.fillAccessor = getValueAccessor(treemap.fill.metric, treemap.fill);
     console.log("treemap.fillAccessor set to: ", treemap.fillAccessor);
     
     var fillColor = function(d) {
@@ -183,7 +183,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	return display_key;
     }
     
-    function valueAccessor(d, metric, group, user, tag) {
+    function valueAccessor(d, metric, filters) {
 	//console.log("valueAccessor: d=", d, " metric=", metric, " group=", group, " user=", user, " tag=", tag)
 	if (_.isUndefined(metric)) {
 	    console.log("valueAccessor: ERROR metric undefined for d.data=", d.data);
@@ -195,35 +195,32 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	if (metric == "name") {
 	    return d.name;
 	}
-	if (_.isUndefined(group)) {
-	    group = "*";
-	}
-	if (_.isUndefined(user)) {
-	    user = "*";
-	} 
-	if (_.isUndefined(tag)) {
-	    tag = "*";
+	if (_.isUndefined(filters)) {
+	    filters = new Object();
+	    filters.group = "*";
+	    filters.user = "*";
+	    filters.tag = "*";
 	}
 	if (_.isObject(d.data)) {
 	    if (!(metric in d.data)) {
-		console.log("valueAccessor: ERROR metric=", metric, " not in d.data=", d.data);
+		console.log("valueAccessor: ERROR metric=", metric, " not in d=", d);
 		return -1;
 	    }
-	    if (!(group in d.data[metric])) {
-		//console.log("valueAccessor: ERROR group=", group, " not in d.data[", metric, "]=", d.data[metric]);
+	    if (!(filters.group in d.data[metric])) {
+		//console.log("valueAccessor: ERROR group=", filters.group, " not in d.data[", metric, "]=", d.data[metric]);
 		return 0;
 	    }
-	    if (!(user in d.data[metric][group])) {
-		//console.log("valueAccessor: ERROR user=", user, " not in d.data[", metric, "][", group, "]=", d.data[metric][group]);
+	    if (!(filters.user in d.data[metric][filters.group])) {
+		//console.log("valueAccessor: ERROR user=", filters.user, " not in d.data[", metric, "][", filters.group, "]=", d.data[metric][filters.group]);
 		return 0;
 	    }
-	    if (!(tag in d.data[metric][group][user])) {
-		//console.log("valueAccessor: ERROR tag=", tag, " not in d.data[", metric, "][", group, "][", user, "]=", d.data[metric][group][user]);
+	    if (!(filters.tag in d.data[metric][filters.group][filters.user])) {
+		//console.log("valueAccessor: ERROR tag=", filters.tag, " not in d.data[", metric, "][", filters.group, "][", filters.user, "]=", d.data[metric][filters.group][filters.user]);
 		return 0;
 	    }
-	    var value = d.data[metric][group][user][tag];
+	    var value = d.data[metric][filters.group][filters.user][filters.tag];
 	    if (_.isUndefined(value)) {
-		console.log("valueAccessor: ERROR undefined value for metric=", metric, " group=", group, " user=", user, " tag=", tag);
+		console.log("valueAccessor: ERROR undefined value for metric=", metric, " group=", filters.group, " user=", filters.user, " tag=", filters.tag);
 		return -1;
 	    }
 	    return +value;
@@ -245,7 +242,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    filters.user = "*";
 	    filters.tag = "*";
 	}
-	var value = valueAccessor(d, metric, filters.group, filters.user, filters.tag);
+	var value = valueAccessor(d, metric, filters);
 	if (/^size$/.exec(metric)) {
 	    return bytes_to_human_readable_string(value);
 	} else if(/time$/.exec(metric)) { // really cost - TODO: fix server to say "atime_cost" etc
@@ -288,10 +285,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	.attr("dy", ".75em");
 
     var path_data_url_templates = {
-	//	"/lustre/scratchtest": _.template("../api/lustretree/scratchtest?depth=2&path=<%= path %>"),
-	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
-	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
-	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
+	"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
+	//"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
+	//"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
+	//"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
 
     function startLoading() {
@@ -679,9 +676,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    //console.log("changed filter property=", property, " select_name=", select_name, " this.value=", this.value);
 	    treemap[property][select_name] = this.value;
 	    if (property == "size") {
-		treemap.sizeAccessor = getValueAccessor(treemap[property]);
+		treemap.sizeAccessor = getValueAccessor(treemap[property].metric, treemap[property]);
 	    } else if (property =="fill") {
-		treemap.fillAccessor = getValueAccessor(treemap[property]);
+		treemap.fillAccessor = getValueAccessor(treemap[property].metric, treemap[property]);
 	    }
 	    setFilterOptions(node, treemap[property], property);
 	    layout(node);
@@ -928,7 +925,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	d3.selectAll("#select_size_metric_form input").on("change", function() {
 	    treemap.size.metric = this.value;
-	    treemap.sizeAccessor = getValueAccessor(treemap.size);
+	    treemap.sizeAccessor = getValueAccessor(treemap.size.metric, treemap.size);
 	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
 	    setFilterOptions(node, treemap.size, "size");
 	    layout(node);
@@ -937,7 +934,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	d3.selectAll("#select_fill_metric_form input").on("change", function() {
 	    treemap.fill.metric = this.value;
-	    treemap.fillAccessor = getValueAccessor(treemap.fill);
+	    treemap.fillAccessor = getValueAccessor(treemap.fill.metric, treemap.fill);
 	    treemap.color = treemap.genColorScale(node, treemap.fillAccessor);
 	    console.log("treemap.fill.metric changed to "+treemap.fill.metric+ " treemap.fillAccessor now ", treemap.fillAccessor);
 	    setFilterOptions(node, treemap.fill, "fill");
