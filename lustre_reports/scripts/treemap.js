@@ -15,6 +15,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	set root(d) {
 	    _root = d;
 	},
+	loaded_paths: new Array(),
 	nodes: new Array(),
 	layout: undefined,
 	svg: undefined,
@@ -36,13 +37,16 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	},
 	loading: false,
 	color: undefined,
-	genColorScale: function(nodes, fillAccessor) {
+	genColorScale: function(d, fillAccessor) {
 	    // colors from colorbrewer2.org 5-class YlGnBu
 	    low =  "#ffffcc";
 	    lmid = "#a1dab4";
 	    mid =  "#41b6c4";
 	    hmid = "#2c7fb8";
 	    high = "#253494";
+	    
+	    //console.log("genColorScale: d=", d);
+	    var nodes = d.child_dirs;
 	    
 	    var min = d3.min(nodes, fillAccessor);
 	    var max = d3.max(nodes, fillAccessor);
@@ -99,7 +103,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
         .range([0, height])
 	.nice();
     
-    var title = d3.select("#footer").insert("div", ":first-child");
+//    var title = d3.select("#footer").insert("div", ":first-child");
     
     var node;
 
@@ -193,16 +197,16 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		return -1;
 	    }
 	    if (!(group in d.data[metric])) {
-		console.log("valueAccessor: ERROR group=", group, " not in d.data=", d.data);
-		return -1;
+		//console.log("valueAccessor: ERROR group=", group, " not in d.data[", metric, "]=", d.data[metric]);
+		return 0;
 	    }
 	    if (!(user in d.data[metric][group])) {
-		console.log("valueAccessor: ERROR user=", user, " not in d.data=", d.data);
-		return -1;
+		//console.log("valueAccessor: ERROR user=", user, " not in d.data[", metric, "][", group, "]=", d.data[metric][group]);
+		return 0;
 	    }
 	    if (!(tag in d.data[metric][group][user])) {
-		console.log("valueAccessor: ERROR tag=", tag, " not in d.data=", d.data);
-		return -1;
+		//console.log("valueAccessor: ERROR tag=", tag, " not in d.data[", metric, "][", group, "][", user, "]=", d.data[metric][group][user]);
+		return 0;
 	    }
 	    var value = d.data[metric][group][user][tag];
 	    if (_.isUndefined(value)) {
@@ -280,6 +284,26 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
     }
 
+    function startLoading() {
+	if (!treemap.loading) {
+	    treemap.loading = true;
+	    d3.select("#status").text("Loading...");
+	    return treemap.loading;
+	} else {
+	    // already loading
+	    return false;
+	}
+    }
+    
+    function isLoading() {
+	return treemap.loading;
+    }
+    
+    function stopLoading() {
+	treemap.loading = false;
+	d3.select("#status").text("");
+    }
+
     function queueTreemapDataRequests(d) {
 	//console.log("queueTreemapDataRequests d=", d);
 	var q = queue();
@@ -303,7 +327,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		if(error.status == 401) {
 		    console.log("Client unauthorized ("+error.status+" ", error.statusText,"): ", error.responseText);
 		    console.log("Should handle authorization TODO!");
-		    treemap.loading = false;
+		    stopLoading();
 		} else if(error.status >= 500 && error.status < 600) {
 		    console.log("Server error "+error.status+" (", error.statusText,"): ", error.responseText);
 		    http_retries--;
@@ -313,22 +337,22 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    } else {
 			console.log("No more retries! Giving up.");
 			console.log("Should report this to user TODO!");
-			treemap.loading = false;
+			stopLoading();
 		    }
 		} else if(error.status >= 400 && error.status < 500) {
 		    console.log("Client error ("+error.status+" ", error.statusText,"): ", error.responseText);
 		    console.log("Should print to page TODO!");
-		    treemap.loading = false;
+		    stopLoading();
 		} else if(error.status == 0) {
 		    console.log("CORS error, possibly from shibboleth redirect?");
 		    console.log(error.getAllResponseHeaders());
-		    treemap.loading = false;
+		    stopLoading();
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		} else {
 		    console.log("Unexpected error ", error.readyState,  error.response, error.responseText, error.responseType, error.responseXML, error.status, error.statusText, error.timeout, error.withCredentials);
 		    console.log(error.getAllResponseHeaders());
-		    treemap.loading = false;
+		    stopLoading();
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		}
@@ -339,10 +363,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			var d = _(data).shift();
 			console.log("treemap.root is empty: ", treemap.root, "setting to d:", d);
 			treemap.root = d;
+			treemap.loaded_paths.push(d.path);
 		    }
 		    _.forEach(data, function(d) {
 			console.log("merging d into treemap.root. d=", d);
 			mergeLustreTree(treemap.root, d);
+			treemap.loaded_paths.push(d.path);
 		    });
 		    
 		    //initialDataLoad();
@@ -357,15 +383,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    console.log("queue completed but data missing. have data=", data);
 		}
 	    }
-	    treemap.loading = false;
+	    stopLoading();
 	});
     }
 
     function fetchTreemapData(d, treemap, load_callback) {
 	//console.log("fetchTreemapData d=", d, "treemap.root=", treemap.root)
-	treemap.loading = true;
-	var q = queueTreemapDataRequests(d);
-	awaitTreemapDataRequests(q, d, treemap, load_callback)
+	if (! _.includes(treemap.loaded_paths, d.path)) {
+	    if (startLoading()) {
+		var q = queueTreemapDataRequests(d);
+		awaitTreemapDataRequests(q, d, treemap, load_callback)
+	    }
+	} else {
+	    console.log("fetchTreemapData d.path=", d.path, " already loaded. treemap.loaded_paths=", treemap.loaded_paths);
+	}
     }
     
     var http_retries = HTTP_RETRY_COUNT;
@@ -538,52 +569,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	console.log("initialDataLoad: have treemap=", treemap);
 
 	// set title text
-	title.text("Humgen Lustre");
+//	title.text("Humgen Lustre");
 	
-	// set size and color options
-	var metric_keys = _.map(treemap.root.data, function(v, k) { return k; });
-	console.log("initialDataLoad: metric_keys=", metric_keys);
-
-	var szM = d3.select("#selectSizeMetricForm").selectAll("span")
-	    .data(metric_keys, function(d) {return d;});
-	szM.exit().remove();
-	szM.enter().append("span")
-	    .attr("id", function(d) {return "size_metric_span_"+d;});
-	
-	var szMinput = szM.append("input")
-	    .attr("type", "radio")
-	    .attr("name", "size_metric")
-	    .attr("value", function(d) {return d;})
-	    .attr("id", function(d) {return "size_metric_"+d;});
-	
-	szMinput.filter(function(d) {return d == treemap.size.metric;})
-	    .property("checked", true);
-	
-	var szMlabel = szM.append("span")
-	    .text(displayMetric);
-	
-	szMlabel.append("br");
-	
-	var flM = d3.select("#selectFillMetricForm").selectAll("span")
-	    .data(metric_keys, function(d) {return d;});
-	flM.exit().remove();
-	flM.enter().append("span")
-	    .attr("id", function(d) {return "fill_metric_span_"+d;});
-
-	var flMinput = flM.append("input")
-	    .attr("type", "radio")
-	    .attr("name", "fill_metric")
-	    .attr("value", function(d) {return d;})
-	    .attr("id", function(d) {return "fill_metric_"+d;});
-	
-	flMinput.filter(function(d) {return d == treemap.fill.metric;})
-	    .property("checked", true);
-
-	var flMlabel = flM.append("span")
-	    .text(displayMetric);
-	
-	flMlabel.append("br");
-
 //	_.each(treemap.root.data, function(value, metric){
 	    // treemap.valueAccessors[key] = function(d) { 
 	    // 	if( _.isObject(d) && _.has(d, key)) { 
@@ -604,8 +591,57 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	
 	initialize(treemap.root);
 	layout(treemap.root);
+
+	// set size and color options
+	var metric_keys = _.map(treemap.root.data, function(v, k) { return k; });
+	console.log("initialDataLoad: metric_keys=", metric_keys);
+
+	var szM = d3.select("#select_size_metric_form").selectAll("span")
+	    .data(metric_keys, function(d) {return d;});
+	szM.exit().remove();
+	szM.enter().append("span")
+	    .attr("id", function(d) {return "size_metric_span_"+d;});
+	
+	var szMinput = szM.append("input")
+	    .attr("type", "radio")
+	    .attr("name", "size_metric")
+	    .attr("value", function(d) {return d;})
+	    .attr("id", function(d) {return "size_metric_"+d;});
+	
+	szMinput.filter(function(d) {return d == treemap.size.metric;})
+	    .property("checked", true);
+	
+	var szMlabel = szM.append("span")
+	    .text(displayMetric);
+	
+	szMlabel.append("br");
+	
+	var flM = d3.select("#select_fill_metric_form").selectAll("span")
+	    .data(metric_keys, function(d) {return d;});
+	flM.exit().remove();
+	flM.enter().append("span")
+	    .attr("id", function(d) {return "fill_metric_span_"+d;});
+
+	var flMinput = flM.append("input")
+	    .attr("type", "radio")
+	    .attr("name", "fill_metric")
+	    .attr("value", function(d) {return d;})
+	    .attr("id", function(d) {return "fill_metric_"+d;});
+	
+	flMinput.filter(function(d) {return d == treemap.fill.metric;})
+	    .property("checked", true);
+
+	var flMlabel = flM.append("span")
+	    .text(displayMetric);
+	
+	flMlabel.append("br");
+	
+	// set group/user/tag according to those in treemap.root
+	setFilterOptions(treemap.root, treemap.size, "size");
+	setFilterOptions(treemap.root, treemap.fill, "fill");
+
 	// have to generate initial color scale after layout, as before that treemap.nodes is unset
-	treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
+	treemap.color = treemap.genColorScale(treemap.root, treemap.fillAccessor);
 	console.log("treemap.color generator set to: ", treemap.color);
 
 	curg = display(treemap.root);
@@ -614,7 +650,59 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    node = treemap.root; // TODO still needed?
 	}
     }
+
+    function setSelectOptions(node, filters, property, select_name, select_options) {
+	var select_form = d3.select("#select_"+property+"_"+select_name+"_form");
+	var select_opts = select_form.selectAll("option")
+	    .data(select_options, function(d) {return d;});
+	select_opts.exit().remove();
+	select_opts.enter().append("option")
+	    .attr("id", function(d) {return property+"_group_"+d;})
+	    .attr("name", property+"_group")
+	    .attr("value", function(d) {return d;})
+	    .text(function(d) {return d;});
+	    
+	select_opts.filter(function(d) {return d == filters[select_name];})
+	    .property("selected", true);
+
+	select_form.on("change", function() {
+	    //console.log("changed filter property=", property, " select_name=", select_name, " this.value=", this.value);
+	    treemap[property][select_name] = this.value;
+	    if (property == "size") {
+		treemap.sizeAccessor = getValueAccessor(treemap[property]);
+	    } else if (property =="fill") {
+		treemap.fillAccessor = getValueAccessor(treemap[property]);
+	    }
+	    setFilterOptions(node, treemap[property], property);
+	    layout(treemap.root);
+	    transitionValues(node);
+	});
+
+    }
+
+    function setFilterOptions(node, filters, property) {
+	var groups = getGroupList(node, filters);
+	setSelectOptions(node, filters, property, "group", groups);
+
+	var users = getUserList(node, filters);
+	setSelectOptions(node, filters, property, "user", users);
 	
+	var tags = getTagList(node, filters);
+	setSelectOptions(node, filters, property, "tag", tags);
+    }
+
+    function getGroupList(d, filters) {
+	return _.keys(d.data[filters.metric]).sort();
+    }
+
+    function getUserList(d, filters) {
+	return _.keys(d.data[filters.metric][filters.group]).sort();
+    }
+
+    function getTagList(d, filters) {
+	return _.keys(d.data[filters.metric][filters.group][filters.user]).sort();
+    }
+
     function initialize(root) {
 	root.x = root.y = 0;
 	root.dx = width;
@@ -682,6 +770,12 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .datum(d.parent)
 	    .on("click", function(d) {
 		if(!_.isUndefined(d)) {
+		    // regenerate color scale based on new layout
+		    treemap.color = treemap.genColorScale(d, treemap.fillAccessor);
+
+		    setFilterOptions(d, treemap.size, "size");
+		    setFilterOptions(d, treemap.fill, "fill");
+
 		    //console.log("clicked grandparent=", d);
 		    //console.log("grandparent clicked d.path="+d.path);
 		    transition(d);
@@ -720,7 +814,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	parent_and_children
 	    .on("click", function(child) {
 		console.log("clicked child=", child);
-		if (treemap.loading) {
+		if (isLoading()) {
 		    console.log("already loading treemap data, refusing to respond to this click");
 		    //TODO pop-up a warning to user that they need to wait! 
 		    alert("Data load in progress, please try again in a moment!");
@@ -731,11 +825,14 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			console.log("new data loaded for child=", child);
 			layout(child);
 		    });
-
+		    
 		    // regenerate color scale based on new layout
-		    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
-
-//		    console.log("before transition, treemap.root=", treemap.root)
+		    treemap.color = treemap.genColorScale(child, treemap.fillAccessor);
+		    
+		    setFilterOptions(child, treemap.size, "size");
+		    setFilterOptions(child, treemap.fill, "fill");
+		    
+		    // console.log("before transition, treemap.root=", treemap.root)
 		    transition(child);
 //		    console.log("after transition, treemap.root=", treemap.root)
 		} else {
@@ -811,19 +908,21 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    .style("text-anchor", "middle")
 	    .text(function(d) { return name(d); });
 	
-	d3.selectAll("#selectSizeMetricForm input").on("change", function() {
+	d3.selectAll("#select_size_metric_form input").on("change", function() {
 	    treemap.size.metric = this.value;
 	    treemap.sizeAccessor = getValueAccessor(treemap.size);
 	    console.log("treemap.size.metric changed to "+treemap.size.metric+ " treemap.sizeAccessor now ", treemap.sizeAccessor);
+	    setFilterOptions(node, treemap.size, "size");
 	    layout(treemap.root);
 	    transitionValues(node);
 	});
 	
-	d3.selectAll("#selectFillMetricForm input").on("change", function() {
+	d3.selectAll("#select_fill_metric_form input").on("change", function() {
 	    treemap.fill.metric = this.value;
 	    treemap.fillAccessor = getValueAccessor(treemap.fill);
-	    treemap.color = treemap.genColorScale(treemap.nodes, treemap.fillAccessor);
+	    treemap.color = treemap.genColorScale(node, treemap.fillAccessor);
 	    console.log("treemap.fill.metric changed to "+treemap.fill.metric+ " treemap.fillAccessor now ", treemap.fillAccessor);
+	    setFilterOptions(node, treemap.fill, "fill");
 	    layout(treemap.root);
 	    transitionValues(node);
 	});
