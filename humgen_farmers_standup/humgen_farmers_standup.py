@@ -5,7 +5,6 @@ import pyratemp
 import ldap
 
 import numpy as np
-import matplotlib.pyplot as plot
 import wand.image
 # generate a weekly farm stats report for farmer's standup
 # calls out to java/jdbc program to run some queries
@@ -113,7 +112,17 @@ for row in topN :
     failed_by_user_sql=failed_by_user % (seven_days_ago(),uid)
     p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
     failed=eval(p.communicate(input=failed_by_user_sql)[0])
-    row.update(failed[0])
+    if len(failed) > 0 :
+        row.update(failed[0])
+    else :
+        tmp={
+            'failed_core_weeks' : 0.0,
+            'failed_cpu_time_avg' : 0.0,
+            'failed_cpu_time_stddev' : 0.0,
+            'failed_num_jobs' : 0,
+            'failed_run_time_avg' : 0.0            
+        }
+        row.update(tmp)
 
 # render the latex template
 tpl=pyratemp.Template(filename='humgen_farmers_standup_template.tex')

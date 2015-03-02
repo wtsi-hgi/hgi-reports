@@ -22,3 +22,7 @@ pdflatex humgen_farmers_standup
 rm humgen_farmers_standup.tex
 rm humgen_farmers_standup.log
 rm humgen_farmers_standup.aux
+
+# move generated file to the reports dir with the date as part of the name
+DATE=`date +%Y_%m_%d`
+mv humgen_farmers_standup.pdf reports/$DATE.pdf
