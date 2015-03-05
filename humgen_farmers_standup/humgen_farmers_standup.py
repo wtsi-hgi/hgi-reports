@@ -69,10 +69,34 @@ top_N_sql="""
 	and ncores >0
 	and cpu_time/run_time < 1024
 	and cpu_time > 0
-    and job_exit_status='DONE'
 	group by user_name
 	order by 2 desc
 	limit %s
+"""
+done_by_user="""
+    select
+        user_name as user_name,
+        sum(cpu_time)/(60*60*24*7) as done_core_weeks,
+        100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as done_cpu_time_min,
+        100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as done_cpu_time_max,
+        100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as done_cpu_time_avg,
+        100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as done_cpu_time_stddev,
+        count(*) as done_num_jobs,
+        avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as done_run_time_avg
+    from rpt_jobmart_raw as r, isg_work_area_groups as g
+    where r.project_name=g.cname
+    and pname='humgen'
+    and finish_time_gmt >='%s'
+    and cluster_name='farm3'
+    and finish_time_gmt > start_time_gmt
+    and run_time > 0
+    and nprocs > 0
+    and ncores >0
+    and cpu_time/run_time < 1024
+    and cpu_time > 0
+    and job_exit_status='DONE'
+    and user_name='%s'
+    group by user_name
 """
 failed_by_user="""
     select
@@ -124,7 +148,20 @@ for row in topN :
             'failed_run_time_avg' : 0.0            
         }
         row.update(tmp)
-
+    done_by_user_sql=done_by_user % (seven_days_ago(),uid)
+    p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
+    done=eval(p.communicate(input=done_by_user_sql)[0])
+    if len(done) > 0 :
+        row.update(done[0])
+    else :
+        tmp={
+            'done_core_weeks' : 0.0,
+            'done_cpu_time_avg' : 0.0,
+            'done_cpu_time_stddev' : 0.0,
+            'done_num_jobs' : 0,
+            'done_run_time_avg' : 0.0
+        }
+        row.update(tmp)
 # render the latex template
 tpl=pyratemp.Template(filename='humgen_farmers_standup_template.tex')
 latex=tpl(date=seven_days_ago(), topN=topN, N=N)
