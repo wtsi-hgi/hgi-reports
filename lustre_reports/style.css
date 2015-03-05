@@ -6,7 +6,7 @@ body {
   font-family: "Helvetica Neue", Helvetica;
 }
 
-#chart, #header, #footer {
+#chart, #header, #filters, #footer {
   position: absolute;
   top: 0;
 }
@@ -17,6 +17,26 @@ body {
   font-size: 36px;
   font-weight: 300;
   text-shadow: 0 1px 0 #fff;
+}
+
+table caption {
+  font-size: 12px;
+  font-weight: 300;
+  text-shadow: 0 1px 0 #fff;
+}
+
+#filters {
+  z-index: 1;
+  display: block;
+  font-size: 24px;
+  font-weight: 300;
+  text-shadow: 0 1px 0 #fff;
+  margin: 1ex;
+}
+
+form, .select_label {
+    font-size: 60%;
+    font-weight: 50%;
 }
 
 #header.inverted, #footer.inverted {
@@ -86,6 +106,12 @@ a:hover {
   width: 960px;
   height: 500px;
   background: #ddd;
+}
+
+#filters {
+  min-width: 10em;
+  height: 500px;
+  left: 960px;
 }
 
 #footer {
