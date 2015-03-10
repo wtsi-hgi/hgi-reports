@@ -295,6 +295,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	if (!treemap.loading) {
 	    treemap.loading = true;
 	    d3.select("#status").text("Loading...");
+	    d3.select("body").style("cursor", "wait");
 	    return treemap.loading;
 	} else {
 	    // already loading
@@ -307,8 +308,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     function stopLoading() {
-	treemap.loading = false;
-	d3.select("#status").text("");
+	    treemap.loading = false;
+	    d3.select("#status").text("");
+	    d3.select("body").style("cursor", "default");
     }
 
     function queueTreemapDataRequests(d) {
