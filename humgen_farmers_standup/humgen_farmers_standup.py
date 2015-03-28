@@ -30,7 +30,7 @@ from jaydebeapi import connect as jdbc_connect
 from os import getenv
 from argh import dispatch_command
 
-def get_user_data(username, ldap_url, ldap_base_dn, ldap_filter_username):
+def get_user_data(username, ldap_url, ldap_user_base_dn, ldap_filter_username):
     """Get user data from LDAP and stores photo to disk
     
     Arguments:
@@ -40,7 +40,7 @@ def get_user_data(username, ldap_url, ldap_base_dn, ldap_filter_username):
     """
     con = ldap.initialize(ldap_url)
     con.set_option(ldap.OPT_X_TLS_DEMAND, True)
-    results = con.search_s(ldap_base_dn,
+    results = con.search_s(ldap_user_base_dn,
                            ldap.SCOPE_SUBTREE, 
                            ldap_filter_username % username)
     if len(results) != 1:
@@ -155,7 +155,7 @@ def main(output="-", top_entry_count=20,
          jdbc_url='jdbc:vertica://localhost:5433/analytics', 
          jdbc_classpath=getenv('CLASSPATH', '.'),
          ldap_url=getenv('LDAP_URL','ldap://ldap/'),
-         ldap_base_dn='',
+         ldap_user_base_dn='',
          ldap_filter_username='(uid=%s)'):
     """Generates report from database via JDBC"""
     
@@ -175,7 +175,7 @@ def main(output="-", top_entry_count=20,
     users = set([row['user_name'] for row in top_n])
     for username in users:
         user_data[username] = get_user_data(username, ldap_url, 
-                                            ldap_base_dn, 
+                                            ldap_user_base_dn, 
                                             ldap_filter_username)
         
     render_latex(output_file=output_file,
