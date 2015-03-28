@@ -27,11 +27,13 @@ import ldap
 from pyratemp import Template
 from wand.image import Image
 from jaydebeapi import connect as jdbc_connect
-from os import getenv
+from os import getenv, path
 from argh import dispatch_command
 
-def get_user_data(username, ldap_url, ldap_user_base_dn, ldap_filter_username):
-    """Get user data from LDAP and stores photo to disk
+def get_user_data(username, ldap_url, ldap_user_base_dn, 
+                  ldap_filter_username, portrait_path,
+                  blank_portrait_path):
+    """Get user data from LDAP and stores portrait to disk
     
     Arguments:
     username -- the username for which to get data
@@ -49,10 +51,10 @@ def get_user_data(username, ldap_url, ldap_user_base_dn, ldap_filter_username):
     full_name = data['cn'][0]
     if 'jpegPhoto' in data:
         jpeg = data['jpegPhoto'][0]
-        jpeg_filename = 'portraits/'+username+'.jpg'
+        jpeg_filename = portrait_path+'/'+username+'.jpg'
         open(jpeg_filename, 'wb').write(crop(jpeg))
     else:
-        jpeg_filename = 'portraits/blank.jpg'
+        jpeg_filename = blank_portrait_path
     return dict(full_name=full_name, jpeg_filename=jpeg_filename)
 
 def crop(jpeg, width=134, height=177):
@@ -75,7 +77,8 @@ def seven_days_ago_sql():
     now = now - week
     return '%04d-%02d-%02d' % (now.year, now.month, now.day)
 
-def get_vertica_data(vertica_conn, start_date, end_date, top_entry_count):
+def get_vertica_data(vertica_conn, template_dir, 
+                     start_date, end_date, top_entry_count):
     """Gets analytics data from vertica"""
     def jpype_to_py(col):
         """Convert jpype types to python"""
@@ -95,9 +98,9 @@ def get_vertica_data(vertica_conn, start_date, end_date, top_entry_count):
                          [jpype_to_py(col) for col in row]))) for row in rows]
 
     # load SQL templates
-    top_n_sql_tpl = Template(filename="top_n_sql.tpl")
-    done_by_user_sql_tpl = Template(filename="done_by_user_sql.tpl")
-    failed_by_user_sql_tpl = Template(filename="failed_by_user_sql.tpl")
+    top_n_sql_tpl = Template(filename=template_dir+"/top_n_sql.tpl")
+    done_by_user_sql_tpl = Template(filename=template_dir+"/done_by_user_sql.tpl")
+    failed_by_user_sql_tpl = Template(filename=template_dir+"/failed_by_user_sql.tpl")
 
     top_n_sql = top_n_sql_tpl(start_date=start_date, end_date=end_date, 
                               n=top_entry_count)
@@ -156,7 +159,10 @@ def main(output="-", top_entry_count=20,
          jdbc_classpath=getenv('CLASSPATH', '.'),
          ldap_url=getenv('LDAP_URL','ldap://ldap/'),
          ldap_user_base_dn='',
-         ldap_filter_username='(uid=%s)'):
+         ldap_filter_username='(uid=%s)',
+         portrait_path='reports/portraits',
+         blank_portrait_path='reports/portraits/blank.jpg',
+         template_dir=path.dirname(path.realpath(__file__))):
     """Generates report from database via JDBC"""
     
     if output == '-':
@@ -168,7 +174,8 @@ def main(output="-", top_entry_count=20,
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
 
-    top_n = get_vertica_data(vertica_conn, start_date, end_date, 
+    top_n = get_vertica_data(vertica_conn, template_dir,
+                             start_date, end_date, 
                              top_entry_count)
 
     user_data = dict()
@@ -176,10 +183,12 @@ def main(output="-", top_entry_count=20,
     for username in users:
         user_data[username] = get_user_data(username, ldap_url, 
                                             ldap_user_base_dn, 
-                                            ldap_filter_username)
+                                            ldap_filter_username,
+                                            portrait_path,
+                                            blank_portrait_path)
         
     render_latex(output_file=output_file,
-                 latex_template_fn='humgen_farmers_standup.tex.tpl', 
+                 latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 
                  start_date=start_date, end_date=end_date, 
                  top_entry_count=top_entry_count,
                  top_n=top_n, 
