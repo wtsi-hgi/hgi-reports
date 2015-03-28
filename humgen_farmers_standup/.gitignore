@@ -1,0 +1,6 @@
+venv/
+portraits/
+*.pdf
+*.log
+*.tex
+*.aux
