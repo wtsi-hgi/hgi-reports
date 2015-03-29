@@ -18,7 +18,7 @@ fi
 set +u # virtualenv's bin/activate references unbound variables
 . ${HFS_DIR}/venv/bin/activate
 set -u
-pip install -r ${HFS_DIR}/requirements.txt 
+pip install -q -r ${HFS_DIR}/requirements.txt 
 
 # make sure required environment variables are set
 have_all_required=1
