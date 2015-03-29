@@ -98,16 +98,23 @@ def get_vertica_data(vertica_conn, template_dir,
                          [jpype_to_py(col) for col in row]))) for row in rows]
 
     # load SQL templates
-    top_n_sql_tpl = Template(filename=template_dir+"/top_n_sql.tpl")
-    done_by_user_sql_tpl = Template(filename=template_dir+"/done_by_user_sql.tpl")
-    failed_by_user_sql_tpl = Template(filename=template_dir+"/failed_by_user_sql.tpl")
+    top_n_cpu_time_sql_tpl = Template(filename=template_dir+"/top_n_cpu_time.sql.tpl")
 
-    top_n_sql = top_n_sql_tpl(start_date=start_date, end_date=end_date, 
-                              n=top_entry_count)
+    top_n_sql = top_n_cpu_time_sql_tpl(prefix="",
+                                       project="humgen",
+                                       cluster="farm3",
+                                       start_date=start_date, 
+                                       end_date=end_date, 
+                                       order_by_desc="core_weeks",
+                                       limit=top_entry_count)
     top_n = vertica_query(top_n_sql)
     for row in top_n:
         username = row['user_name']
-        failed_by_user_sql = failed_by_user_sql_tpl(start_date=start_date, 
+        failed_by_user_sql = top_n_cpu_time_sql_tpl(prefix="failed_",
+                                                    project="humgen",
+                                                    cluster="farm3",
+                                                    exit_status="EXIT",
+                                                    start_date=start_date, 
                                                     end_date=end_date, 
                                                     username=username)
         failed = vertica_query(failed_by_user_sql)
@@ -123,9 +130,13 @@ def get_vertica_data(vertica_conn, template_dir,
                 }
             row.update(tmp)
 
-        done_by_user_sql = done_by_user_sql_tpl(start_date=start_date, 
-                                                end_date=end_date, 
-                                                username=username)
+        done_by_user_sql = top_n_cpu_time_sql_tpl(prefix="done_",
+                                                  project="humgen",
+                                                  cluster="farm3",
+                                                  exit_status="DONE",
+                                                  start_date=start_date, 
+                                                  end_date=end_date, 
+                                                  username=username)
         done = vertica_query(done_by_user_sql)
         if len(done) > 0:
             row.update(done[0])
