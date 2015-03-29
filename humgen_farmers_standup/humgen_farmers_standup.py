@@ -123,10 +123,10 @@ def get_vertica_data(vertica_conn, template_dir,
         else:
             tmp = {
                 'failed_core_weeks': 0.0,
-                'failed_cpu_time_avg': 0.0,
-                'failed_cpu_time_stddev': 0.0,
+                'failed_cpu_eff_avg': 0.0,
+                'failed_cpu_eff_stddev': 0.0,
                 'failed_num_jobs': 0,
-                'failed_run_time_avg': 0.0            
+                'failed_run_eff_avg': 0.0            
                 }
             row.update(tmp)
 
@@ -143,10 +143,10 @@ def get_vertica_data(vertica_conn, template_dir,
         else:
             tmp = {
                 'done_core_weeks': 0.0,
-                'done_cpu_time_avg': 0.0,
-                'done_cpu_time_stddev': 0.0,
+                'done_cpu_eff_avg': 0.0,
+                'done_cpu_eff_stddev': 0.0,
                 'done_num_jobs': 0,
-                'done_run_time_avg': 0.0
+                'done_run_eff_avg': 0.0
                 }
             row.update(tmp)
     return top_n

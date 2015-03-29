@@ -1,12 +1,12 @@
 select
 	user_name as user_name,
 	sum(cpu_time)/(60*60*24*7) as @!prefix!@core_weeks,
-	100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_time_min,
-	100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_time_max,
-	100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as @!prefix!@cpu_time_avg,
-	100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_time_stddev,
+	100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_eff_min,
+	100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_eff_max,
+	100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as @!prefix!@cpu_eff_avg,
+	100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as @!prefix!@cpu_eff_stddev,
 	count(*) as @!prefix!@num_jobs,
-	avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as @!prefix!@run_time_avg
+	avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as @!prefix!@run_time_avg_hrs
 from rpt_jobmart_raw as r, isg_work_area_groups as g
 where r.project_name = g.cname
 	and finish_time_gmt >= '@!start_date!@'

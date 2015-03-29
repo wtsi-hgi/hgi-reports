@@ -18,8 +18,8 @@
 \hline
 \hline
 <!--(for row in top_n)-->
-\multirow{2}{*}{\includegraphics[height=10mm]{@!user_data[row['user_name']]['jpeg_filename']!@}} & @!user_data[row['user_name']]['full_name']!@ (@!row['user_name']!@) & @! "%.2f" % float(row['done_core_weeks']) !@ & @! "%.2f" % float(row['done_cpu_time_avg']) !@ $\pm$ @! "%.2f" % float(row['done_cpu_time_stddev']) !@ & @! int(row['done_num_jobs']) !@ & @! "%.2f" % float(row['done_run_time_avg']) !@ \\
-& & \textcolor{red}{ @! "%.2f" % float(row['failed_core_weeks']) !@} & \textcolor{red}{ @! "%.2f" % float(row['failed_cpu_time_avg']) !@ $\pm$ @! "%.2f" % float(row['failed_cpu_time_stddev']) !@} & \textcolor{red}{@! int(row['failed_num_jobs']) !@} & \textcolor{red}{@! "%.2f" % float(row['failed_run_time_avg']) !@}\\
+\multirow{2}{*}{\includegraphics[height=10mm]{@!user_data[row['user_name']]['jpeg_filename']!@}} & @!user_data[row['user_name']]['full_name']!@ (@!row['user_name']!@) & @! "%.2f" % float(row['done_core_weeks']) !@ & @! "%.2f" % float(row['done_cpu_eff_avg']) !@ $\pm$ @! "%.2f" % float(row['done_cpu_eff_stddev']) !@ & @! int(row['done_num_jobs']) !@ & @! "%.2f" % float(row['done_run_time_avg_hrs']) !@ \\
+& & \textcolor{red}{ @! "%.2f" % float(row['failed_core_weeks']) !@} & \textcolor{red}{ @! "%.2f" % float(row['failed_cpu_eff_avg']) !@ $\pm$ @! "%.2f" % float(row['failed_cpu_eff_stddev']) !@} & \textcolor{red}{@! int(row['failed_num_jobs']) !@} & \textcolor{red}{@! "%.2f" % float(row['failed_run_time_avg_hrs']) !@}\\
 \hline
 <!--(end)-->
 \end{longtable}
