@@ -21,12 +21,14 @@
 
 """Generate humgen farmers' stand-up report (LaTeX)"""
 
-from sys import stdout
+from __future__ import print_function
+from sys import exit, stdout, stderr
 from datetime import datetime, timedelta
 import ldap
 from pyratemp import Template
 from wand.image import Image
 from jaydebeapi import connect as jdbc_connect
+from jaydebeapi import DBAPITypeObject
 from os import getenv, path
 from argh import dispatch_command
 
@@ -80,6 +82,7 @@ def seven_days_ago_sql():
 def get_vertica_data(vertica_conn, template_dir, 
                      start_date, end_date, top_entry_count):
     """Gets analytics data from vertica"""
+    data = dict()
     def jpype_to_py(col):
         """Convert jpype types to python"""
         if hasattr(col, 'value'):
@@ -91,78 +94,89 @@ def get_vertica_data(vertica_conn, template_dir,
     def vertica_query(sql):
         """Runs a vertica SQL query and returns a list of dicts"""
         curs = vertica_conn.cursor()
-        curs.execute(sql)
+        try:
+            curs.execute(sql)
+        except Exception, e:
+            print("Exception running SQL query [%s]: %s" % (sql, e), file=stderr)
+            exit(1)
         col_names = [t[0] for t in curs.description]
         rows = curs.fetchall()
-        return [dict(list(zip(col_names, 
-                         [jpype_to_py(col) for col in row]))) for row in rows]
-
-    # load SQL templates
-    top_n_cpu_time_sql_tpl = Template(filename=template_dir+"/top_n_cpu_time.sql.tpl")
-
-    top_n_sql = top_n_cpu_time_sql_tpl(prefix="",
-                                       project="humgen",
-                                       cluster="farm3",
-                                       start_date=start_date, 
-                                       end_date=end_date, 
-                                       order_by_desc="core_weeks",
-                                       limit=top_entry_count)
-    top_n = vertica_query(top_n_sql)
-    for row in top_n:
-        username = row['user_name']
-        failed_by_user_sql = top_n_cpu_time_sql_tpl(prefix="failed_",
-                                                    project="humgen",
-                                                    cluster="farm3",
-                                                    exit_status="EXIT",
-                                                    start_date=start_date, 
-                                                    end_date=end_date, 
-                                                    username=username)
-        failed = vertica_query(failed_by_user_sql)
-        if len(failed) > 0:
-            row.update(failed[0])
+        if len(rows) > 0:
+            return [dict(list(zip(col_names, 
+                                  [jpype_to_py(col) for col in row]))) for row in rows]
         else:
-            tmp = {
-                'failed_core_weeks': 0.0,
-                'failed_cpu_eff_avg': 0.0,
-                'failed_cpu_eff_stddev': 0.0,
-                'failed_num_jobs': 0,
-                'failed_run_eff_avg': 0.0            
-                }
-            row.update(tmp)
+            # no results, prepare an empty set
+            empty = dict()
+            for i, col_name in enumerate(col_names):
+                col_type = curs.description[i][1]
+                if col_type == 'DECIMAL' or col_type == 'FLOAT':
+                    empty[col_name] = 0.0
+                elif col_type == 'INTEGER':
+                    empty[col_name] = 0
+            return [ empty ]
 
-        done_by_user_sql = top_n_cpu_time_sql_tpl(prefix="done_",
-                                                  project="humgen",
-                                                  cluster="farm3",
-                                                  exit_status="DONE",
-                                                  start_date=start_date, 
-                                                  end_date=end_date, 
-                                                  username=username)
-        done = vertica_query(done_by_user_sql)
-        if len(done) > 0:
-            row.update(done[0])
+    for tpl_type in ["cpu", "mem"]:
+        if tpl_type == "cpu":
+            order_by = "core_wall_time_weeks"
         else:
-            tmp = {
-                'done_core_weeks': 0.0,
-                'done_cpu_eff_avg': 0.0,
-                'done_cpu_eff_stddev': 0.0,
-                'done_num_jobs': 0,
-                'done_run_eff_avg': 0.0
-                }
-            row.update(tmp)
-    return top_n
+            order_by = "mem_req_gb_weeks"
+        template = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
+        top_n_sql = template(prefix="",
+                             project="humgen",
+                             cluster="farm3",
+                             start_date=start_date, 
+                             end_date=end_date, 
+                             order_by_desc=order_by,
+                             limit=top_entry_count)
+        top_n = vertica_query(top_n_sql)
+        for row in top_n:
+            username = row['user_name']
+            failed_by_user_sql = template(prefix="failed_",
+                                          project="humgen",
+                                          cluster="farm3",
+                                          exit_status="EXIT",
+                                          start_date=start_date, 
+                                          end_date=end_date, 
+                                          username=username)
+            failed = vertica_query(failed_by_user_sql)
+            if len(failed) > 0:
+                row.update(failed[0])
+            else:
+                print("no results from vertica_query for failed_by_user_sql", 
+                      file=stderr)
+                exit(1)
+            done_by_user_sql = template(prefix="done_",
+                                        project="humgen",
+                                        cluster="farm3",
+                                        exit_status="DONE",
+                                        start_date=start_date, 
+                                        end_date=end_date, 
+                                        username=username)
+            done = vertica_query(done_by_user_sql)
+            if len(done) > 0:
+                row.update(done[0])
+            else:
+                print("no results from vertica_query for done_by_user_sql", 
+                      file=stderr)
+                exit(1)
+        data[tpl_type] = top_n
+    return data
 
 def render_latex(output_file, latex_template_fn, 
                  start_date, end_date, 
-                 top_entry_count, top_n, 
+                 top_entry_count, top_n_cpu, 
+                 top_n_mem,
                  user_data):
     """Render the latex template"""
     latex_tpl = Template(filename=latex_template_fn)
     latex = latex_tpl(start_date=start_date, end_date=end_date, 
-                      top_n=top_n, n=top_entry_count, 
+                      top_n_cpu=top_n_cpu, 
+                      top_n_mem=top_n_mem,
+                      n=top_entry_count, 
                       user_data=user_data)
     output_file.write(latex)
 
-def main(output="-", top_entry_count=20, 
+def main(output="-", top_entry_count=10, 
          start_date=seven_days_ago_sql(), end_date=today_sql(), 
          username='', password='', 
          jdbc_driver='com.vertica.Driver', 
@@ -185,12 +199,12 @@ def main(output="-", top_entry_count=20,
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
 
-    top_n = get_vertica_data(vertica_conn, template_dir,
-                             start_date, end_date, 
-                             top_entry_count)
+    data = get_vertica_data(vertica_conn, template_dir,
+                            start_date, end_date, 
+                            top_entry_count)
 
     user_data = dict()
-    users = set([row['user_name'] for row in top_n])
+    users = set([row['user_name'] for row in data['mem'] + data['cpu']])
     for username in users:
         user_data[username] = get_user_data(username, ldap_url, 
                                             ldap_user_base_dn, 
@@ -202,7 +216,8 @@ def main(output="-", top_entry_count=20,
                  latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 
                  start_date=start_date, end_date=end_date, 
                  top_entry_count=top_entry_count,
-                 top_n=top_n, 
+                 top_n_cpu=data['cpu'], 
+                 top_n_mem=data['mem'],
                  user_data=user_data)
 
     output_file.close()
