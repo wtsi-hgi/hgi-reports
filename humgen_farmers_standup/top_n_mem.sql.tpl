@@ -15,9 +15,11 @@ select
 	100.0*max(@!mem_usage_gb_s()!@/@!mem_req_gb_s()!@) as @!prefix!@mem_eff_max,
 	100.0*avg(@!mem_usage_gb_s()!@/@!mem_req_gb_s()!@) as @!prefix!@mem_eff_avg,
 	100.0*stddev(@!mem_usage_gb_s()!@/@!mem_req_gb_s()!@) as @!prefix!@mem_eff_stddev,
-	100.0*sum(@!mem_req_gb_s()!@)/sum(@!mem_usage_gb_s()!@) as @!prefix!@mem_eff_total,
-	(sum(@!mem_req_gb_s()!@)-sum(@!mem_req_gb_s()!@))/(60*60*24*7) as @!prefix!@wasted_mem_gb_weeks,
+	100.0*sum(@!mem_usage_gb_s()!@)/sum(@!mem_req_gb_s()!@) as @!prefix!@mem_eff_total,
+	(sum(@!mem_req_gb_s()!@)-sum(@!mem_usage_gb_s()!@))/(60*60*24*7) as @!prefix!@wasted_mem_gb_weeks,
 	avg(num_slots) as @!prefix!@n_slots_avg,
+	avg(mem_usage/1024/1024) as @!prefix!@mem_usage_gb_avg,
+	avg(@!mem_usage_gb_s()!@/(60*60)) as @!prefix!@mem_usage_gb_hrs_avg,
 	count(*) as @!prefix!@num_jobs,
 	avg(@!wall_time()!@)/3600 as @!prefix!@run_time_avg_hrs
 from rpt_jobmart_raw as r, isg_work_area_groups as g
@@ -36,8 +38,10 @@ where r.project_name = g.cname
 <!--(if exists("project"))-->
 	and pname = '@!project!@'
 <!--(end)-->
-<!--(if exists("exit_status"))-->
-	and job_exit_status = '@!exit_status!@'
+<!--(if exists("sql_conds"))-->
+	<!--(for cond in sql_conds)-->
+	and ($!cond!$)
+	<!--(end)-->
 <!--(end)-->
 <!--(if exists("username"))-->
 	and user_name = '@!username!@'

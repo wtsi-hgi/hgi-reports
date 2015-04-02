@@ -27,14 +27,18 @@ from datetime import datetime, timedelta
 import ldap
 from pyratemp import Template
 from wand.image import Image
+from wand.color import Color
+from wand.font import Font
 from jaydebeapi import connect as jdbc_connect
 from jaydebeapi import DBAPITypeObject
 from os import getenv, path
 from argh import dispatch_command
 
+PALETTE = ['#E7298A', '#66A61E', '#E6AB02', '#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3']
+
 def get_user_data(username, ldap_url, ldap_user_base_dn, 
                   ldap_filter_username, portrait_path,
-                  blank_portrait_path):
+                  font_path):
     """Get user data from LDAP and stores portrait to disk
     
     Arguments:
@@ -51,12 +55,26 @@ def get_user_data(username, ldap_url, ldap_user_base_dn,
         return None
     data = results[0][1]
     full_name = data['cn'][0]
+    jpeg_filename = portrait_path+'/'+username+'.jpg'
     if 'jpegPhoto' in data:
         jpeg = data['jpegPhoto'][0]
-        jpeg_filename = portrait_path+'/'+username+'.jpg'
         open(jpeg_filename, 'wb').write(crop(jpeg))
     else:
-        jpeg_filename = blank_portrait_path
+        caption = username[0].upper()
+        font = Font(path=font_path, 
+                    size=120, 
+                    color=Color('white'))
+        with Image(background=Color(PALETTE[ord(caption[0]) % len(PALETTE)]),
+                   width=134, 
+                   height=177) as image:
+            image.caption(caption, 
+                          left=8,
+                          top=8, 
+                          width=134, 
+                          height=177, 
+                          font=font,
+                          gravity='center')
+            image.save(filename=jpeg_filename)
     return dict(full_name=full_name, jpeg_filename=jpeg_filename)
 
 def crop(jpeg, width=134, height=177):
@@ -95,6 +113,7 @@ def get_vertica_data(vertica_conn, template_dir,
         """Runs a vertica SQL query and returns a list of dicts"""
         curs = vertica_conn.cursor()
         try:
+            print("excuting SQL query: %s" % sql)
             curs.execute(sql)
         except Exception, e:
             print("Exception running SQL query [%s]: %s" % (sql, e), file=stderr)
@@ -120,24 +139,24 @@ def get_vertica_data(vertica_conn, template_dir,
             order_by = "core_wall_time_weeks"
         else:
             order_by = "mem_req_gb_weeks"
-        template = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
-        top_n_sql = template(prefix="",
-                             project="humgen",
-                             cluster="farm3",
-                             start_date=start_date, 
-                             end_date=end_date, 
-                             order_by_desc=order_by,
-                             limit=top_entry_count)
+        top_n_sql_tpl = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
+        top_n_sql = top_n_sql_tpl(prefix="",
+                                  project="humgen",
+                                  cluster="farm3",
+                                  start_date=start_date, 
+                                  end_date=end_date, 
+                                  order_by_desc=order_by,
+                                  limit=top_entry_count)
         top_n = vertica_query(top_n_sql)
         for row in top_n:
             username = row['user_name']
-            failed_by_user_sql = template(prefix="failed_",
-                                          project="humgen",
-                                          cluster="farm3",
-                                          exit_status="EXIT",
-                                          start_date=start_date, 
-                                          end_date=end_date, 
-                                          username=username)
+            failed_by_user_sql = top_n_sql_tpl(prefix="failed_",
+                                               project="humgen",
+                                               cluster="farm3",
+                                               sql_conds=["job_exit_status = 'EXIT' AND NOT REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                               start_date=start_date, 
+                                               end_date=end_date, 
+                                               username=username)
             failed = vertica_query(failed_by_user_sql)
             if len(failed) > 0:
                 row.update(failed[0])
@@ -145,13 +164,13 @@ def get_vertica_data(vertica_conn, template_dir,
                 print("no results from vertica_query for failed_by_user_sql", 
                       file=stderr)
                 exit(1)
-            done_by_user_sql = template(prefix="done_",
-                                        project="humgen",
-                                        cluster="farm3",
-                                        exit_status="DONE",
-                                        start_date=start_date, 
-                                        end_date=end_date, 
-                                        username=username)
+            done_by_user_sql = top_n_sql_tpl(prefix="done_",
+                                             project="humgen",
+                                             cluster="farm3",
+                                             sql_conds=["job_exit_status = 'DONE' OR REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                             start_date=start_date, 
+                                             end_date=end_date, 
+                                             username=username)
             done = vertica_query(done_by_user_sql)
             if len(done) > 0:
                 row.update(done[0])
@@ -176,7 +195,7 @@ def render_latex(output_file, latex_template_fn,
                       user_data=user_data)
     output_file.write(latex)
 
-def main(output="-", top_entry_count=10, 
+def main(output="-", top_entry_count=5, 
          start_date=seven_days_ago_sql(), end_date=today_sql(), 
          username='', password='', 
          jdbc_driver='com.vertica.Driver', 
@@ -187,6 +206,7 @@ def main(output="-", top_entry_count=10,
          ldap_filter_username='(uid=%s)',
          portrait_path='reports/portraits',
          blank_portrait_path='reports/portraits/blank.jpg',
+         font_path='fonts/LeagueGothic-CondensedRegular.otf',
          template_dir=path.dirname(path.realpath(__file__))):
     """Generates report from database via JDBC"""
     
@@ -210,7 +230,7 @@ def main(output="-", top_entry_count=10,
                                             ldap_user_base_dn, 
                                             ldap_filter_username,
                                             portrait_path,
-                                            blank_portrait_path)
+                                            font_path)
         
     render_latex(output_file=output_file,
                  latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 

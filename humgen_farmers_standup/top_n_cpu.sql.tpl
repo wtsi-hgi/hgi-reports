@@ -32,8 +32,10 @@ where r.project_name = g.cname
 <!--(if exists("project"))-->
 	and pname = '@!project!@'
 <!--(end)-->
-<!--(if exists("exit_status"))-->
-	and job_exit_status = '@!exit_status!@'
+<!--(if exists("sql_conds"))-->
+	<!--(for cond in sql_conds)-->
+	and ($!cond!$)
+	<!--(end)-->
 <!--(end)-->
 <!--(if exists("username"))-->
 	and user_name = '@!username!@'
