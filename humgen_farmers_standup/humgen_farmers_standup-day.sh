@@ -59,8 +59,7 @@ cd ${HFS_DIR}/reports
 
 # generate the tex file 
 OUTFILE_BASE=${HFS_DIR}/reports/humgen-standup-${DATE}
-echo "generating ${OUTFILE_BASE}.tex"
-python ${HFS_DIR}/humgen_farmers_standup.py -u ${VERTICA_USERNAME} --password ${VERTICA_PASSWORD} --jdbc-url ${VERTICA_JDBC_URL} --jdbc-classpath ${VERTICA_CLASSPATH} --ldap-url ${LDAP_URL} --ldap-user-base-dn ${LDAP_USER_BASE_DN} --portrait-path ./portraits --blank-portrait-path ./portraits/blank.jpg --output ${OUTFILE_BASE}.tex
+python ${HFS_DIR}/humgen_farmers_standup.py -u ${VERTICA_USERNAME} --password ${VERTICA_PASSWORD} --jdbc-url ${VERTICA_JDBC_URL} --jdbc-classpath ${VERTICA_CLASSPATH} --ldap-url ${LDAP_URL} --ldap-user-base-dn ${LDAP_USER_BASE_DN} --portrait-path ./portraits --blank-portrait-path ./portraits/blank.jpg --output ${OUTFILE_BASE}.tex --start-date "2015-03-30" --end-date "2015-03-31"
 
 # deactivate virtualenv
 set +u # virtualenv's deactivate references unbound variables
