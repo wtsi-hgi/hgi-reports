@@ -54,7 +54,14 @@ def get_user_data(username, ldap_url, ldap_user_base_dn,
     if len(results) != 1:
         return None
     data = results[0][1]
+    last_name = data['sn'][0]
+    first_name = data['givenName'][0]
     full_name = data['cn'][0]
+    if len(full_name) > 25:
+        full_name = first_name + " " + last_name
+    if len(full_name) > 25:
+        full_name = first_name + " " + last_name[0].upper() + "."
+
     jpeg_filename = portrait_path+'/'+username+'.jpg'
     if 'jpegPhoto' in data:
         jpeg = data['jpegPhoto'][0]
@@ -65,24 +72,22 @@ def get_user_data(username, ldap_url, ldap_user_base_dn,
                     size=120, 
                     color=Color('white'))
         with Image(background=Color(PALETTE[ord(caption[0]) % len(PALETTE)]),
-                   width=134, 
-                   height=177) as image:
+                   width=128, 
+                   height=171) as image:
             image.caption(caption, 
                           left=8,
                           top=8, 
-                          width=134, 
-                          height=177, 
+                          width=128, 
+                          height=171, 
                           font=font,
                           gravity='center')
             image.save(filename=jpeg_filename)
     return dict(full_name=full_name, jpeg_filename=jpeg_filename)
 
-def crop(jpeg, width=134, height=177):
-    """Returns a cropped version of an image if it has a non-standard size"""
+def crop(jpeg, width=128, height=171):
+    """Returns a cropped version of an image"""
     img = Image(blob=jpeg)
-    if (img.height != height or
-        img.width != width):
-        img.crop(0, 0, width, height)
+    img.crop(left=3, top=3, width=width, height=height)
     return img.make_blob()
 
 def today_sql():
