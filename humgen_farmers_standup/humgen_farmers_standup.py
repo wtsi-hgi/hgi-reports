@@ -200,7 +200,7 @@ def render_latex(output_file, latex_template_fn,
                       user_data=user_data)
     output_file.write(latex)
 
-def main(output="-", top_entry_count=5, 
+def main(output="-", top_entry_count=20, 
          start_date=seven_days_ago_sql(), end_date=today_sql(), 
          username='', password='', 
          jdbc_driver='com.vertica.Driver', 
