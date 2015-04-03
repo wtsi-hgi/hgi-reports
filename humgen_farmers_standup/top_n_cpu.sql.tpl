@@ -6,19 +6,19 @@
 <!--(end)-->
 select
 	user_name as user_name,
-	sum(cpu_time)/(60*60*24*7) as @!prefix!@cpu_time_weeks,
-	sum(@!core_wall_time()!@)/(60*60*24*7) as @!prefix!@core_wall_time_weeks,
-	100.0*min(cpu_time/@!core_wall_time()!@) as @!prefix!@cpu_eff_min,
-	100.0*max(cpu_time/@!core_wall_time()!@) as @!prefix!@cpu_eff_max,
-	100.0*avg(cpu_time/@!core_wall_time()!@) as @!prefix!@cpu_eff_avg,
-	100.0*stddev(cpu_time/@!core_wall_time()!@) as @!prefix!@cpu_eff_stddev,
-	100.0*sum(cpu_time)/sum(@!core_wall_time()!@) as @!prefix!@cpu_eff_total,
-	(sum(@!core_wall_time()!@)-sum(cpu_time))/(60*60*24*7) as @!prefix!@wasted_core_weeks,
-	avg(num_slots) as @!prefix!@n_slots_avg,
-	stddev(num_slots) as @!prefix!@n_slots_stddev,
-	count(*) as @!prefix!@num_jobs,
-	avg(@!wall_time()!@)/3600 as @!prefix!@run_time_hrs_avg,
-	stddev(@!wall_time()!@)/3600 as @!prefix!@run_time_hrs_stddev
+	sum(cpu_time)/(60*60*24*7) as cpu_time_weeks,
+	sum(@!core_wall_time()!@)/(60*60*24*7) as core_wall_time_weeks,
+	100.0*min(cpu_time/@!core_wall_time()!@) as cpu_eff_min,
+	100.0*max(cpu_time/@!core_wall_time()!@) as cpu_eff_max,
+	100.0*avg(cpu_time/@!core_wall_time()!@) as cpu_eff_avg,
+	100.0*stddev(cpu_time/@!core_wall_time()!@) as cpu_eff_stddev,
+	100.0*sum(cpu_time)/sum(@!core_wall_time()!@) as cpu_eff_total,
+	(sum(@!core_wall_time()!@)-sum(cpu_time))/(60*60*24*7) as wasted_core_weeks,
+	avg(num_slots) as n_slots_avg,
+	stddev(num_slots) as n_slots_stddev,
+	count(*) as num_jobs,
+	avg(@!wall_time()!@)/3600 as run_time_hrs_avg,
+	stddev(@!wall_time()!@)/3600 as run_time_hrs_stddev
 from rpt_jobmart_raw as r, isg_work_area_groups as g
 where r.project_name = g.cname
 	and finish_time_gmt >= '@!start_date!@'

@@ -29,12 +29,13 @@ from pyratemp import Template
 from wand.image import Image
 from wand.color import Color
 from wand.font import Font
+from hashlib import md5
 from jaydebeapi import connect as jdbc_connect
 from jaydebeapi import DBAPITypeObject
 from os import getenv, path
 from argh import dispatch_command
 
-PALETTE = ['#E7298A', '#66A61E', '#E6AB02', '#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3']
+PALETTE = ['#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3', '#E7298A', '#66A61E', '#E6AB02']
 
 def get_user_data(username, ldap_url, ldap_user_base_dn, 
                   ldap_filter_username, portrait_path,
@@ -71,7 +72,8 @@ def get_user_data(username, ldap_url, ldap_user_base_dn,
         font = Font(path=font_path, 
                     size=120, 
                     color=Color('white'))
-        with Image(background=Color(PALETTE[ord(caption[0]) % len(PALETTE)]),
+        color_index = int(md5(username).hexdigest()[0], 16) % len(PALETTE)
+        with Image(background=Color(PALETTE[color_index]),
                    width=128, 
                    height=171) as image:
             image.caption(caption, 
@@ -102,42 +104,42 @@ def seven_days_ago_sql():
     now = now - week
     return '%04d-%02d-%02d' % (now.year, now.month, now.day)
 
-def get_vertica_data(vertica_conn, template_dir, 
-                     start_date, end_date, top_entry_count):
-    """Gets analytics data from vertica"""
-    data = dict()
-    def jpype_to_py(col):
-        """Convert jpype types to python"""
-        if hasattr(col, 'value'):
-            return col.value
-        else:
-            return col 
+def jpype_to_py(col):
+    """Convert jpype types to python"""
+    if hasattr(col, 'value'):
+        return col.value
+    else:
+        return col 
 
-    # run a vertica query
-    def vertica_query(sql):
-        """Runs a vertica SQL query and returns a list of dicts"""
-        curs = vertica_conn.cursor()
-        try:
-            print("excuting SQL query: %s" % sql)
-            curs.execute(sql)
-        except Exception, e:
-            print("Exception running SQL query [%s]: %s" % (sql, e), file=stderr)
-            exit(1)
-        col_names = [t[0] for t in curs.description]
-        rows = curs.fetchall()
-        if len(rows) > 0:
-            return [dict(list(zip(col_names, 
-                                  [jpype_to_py(col) for col in row]))) for row in rows]
-        else:
-            # no results, prepare an empty set
-            empty = dict()
-            for i, col_name in enumerate(col_names):
-                col_type = curs.description[i][1]
-                if col_type == 'DECIMAL' or col_type == 'FLOAT':
-                    empty[col_name] = 0.0
-                elif col_type == 'INTEGER':
-                    empty[col_name] = 0
-            return [ empty ]
+# run a vertica query
+def vertica_query(vertica_conn, sql):
+    """Runs a vertica SQL query and returns a list of dicts"""
+    curs = vertica_conn.cursor()
+    try:
+        curs.execute(sql)
+    except Exception, e:
+        print("Exception running SQL query [%s]: %s" % (sql, e), file=stderr)
+        exit(1)
+    col_names = [t[0] for t in curs.description]
+    rows = curs.fetchall()
+    if len(rows) > 0:
+        return [dict(list(zip(col_names, 
+                              [jpype_to_py(col) for col in row]))) for row in rows]
+    else:
+        # no results, prepare an empty set
+        empty = dict()
+        for i, col_name in enumerate(col_names):
+            col_type = curs.description[i][1]
+            if col_type == 'DECIMAL' or col_type == 'FLOAT':
+                empty[col_name] = 0.0
+            elif col_type == 'INTEGER':
+                empty[col_name] = 0
+        return [ empty ]
+
+def get_vertica_top_n(vertica_conn, template_dir, 
+                      start_date, end_date, top_entry_count):
+    """Gets analytics data from vertica"""
+    top_n_users = dict()
 
     for tpl_type in ["cpu", "mem"]:
         if tpl_type == "cpu":
@@ -145,59 +147,73 @@ def get_vertica_data(vertica_conn, template_dir,
         else:
             order_by = "mem_req_gb_weeks"
         top_n_sql_tpl = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
-        top_n_sql = top_n_sql_tpl(prefix="",
-                                  project="humgen",
+        top_n_sql = top_n_sql_tpl(project="humgen",
                                   cluster="farm3",
                                   start_date=start_date, 
                                   end_date=end_date, 
                                   order_by_desc=order_by,
                                   limit=top_entry_count)
-        top_n = vertica_query(top_n_sql)
-        for row in top_n:
+        top_n = vertica_query(vertica_conn, top_n_sql)
+        top_n_users[tpl_type] = [ row['user_name'] for row in top_n ]
+    return top_n_users
+
+def get_vertica_user_details(vertica_conn, template_dir, 
+                             start_date, end_date, 
+                             users):
+    user_details = dict()
+    for user in users:
+        user_details[user] = dict()
+        user_details[user]['done'] = {}
+        user_details[user]['failed'] = {}
+
+    user_job_details_tpl = Template(filename=template_dir+"/user_job_details.sql.tpl")
+    failed_user_job_details_sql = user_job_details_tpl(project="humgen",
+                                                       cluster="farm3",
+                                                       sql_conds=["job_exit_status = 'EXIT' AND NOT REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                                       start_date=start_date, 
+                                                       end_date=end_date, 
+                                                       usernames=users)
+    failed = vertica_query(vertica_conn, failed_user_job_details_sql)
+    if len(failed) > 0:
+        for row in failed:
             username = row['user_name']
-            failed_by_user_sql = top_n_sql_tpl(prefix="failed_",
-                                               project="humgen",
-                                               cluster="farm3",
-                                               sql_conds=["job_exit_status = 'EXIT' AND NOT REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
-                                               start_date=start_date, 
-                                               end_date=end_date, 
-                                               username=username)
-            failed = vertica_query(failed_by_user_sql)
-            if len(failed) > 0:
-                row.update(failed[0])
-            else:
-                print("no results from vertica_query for failed_by_user_sql", 
-                      file=stderr)
-                exit(1)
-            done_by_user_sql = top_n_sql_tpl(prefix="done_",
-                                             project="humgen",
-                                             cluster="farm3",
-                                             sql_conds=["job_exit_status = 'DONE' OR REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
-                                             start_date=start_date, 
-                                             end_date=end_date, 
-                                             username=username)
-            done = vertica_query(done_by_user_sql)
-            if len(done) > 0:
-                row.update(done[0])
-            else:
-                print("no results from vertica_query for done_by_user_sql", 
-                      file=stderr)
-                exit(1)
-        data[tpl_type] = top_n
-    return data
+            user_details[username]['failed'] = row
+    else:
+        print("no results from vertica_query for failed_user_job_details_sql", 
+              file=stderr)
+        exit(1)
+
+    done_user_job_details_sql = user_job_details_tpl(project="humgen",
+                                                     cluster="farm3",
+                                                     sql_conds=["job_exit_status = 'DONE' OR REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                                     start_date=start_date, 
+                                                     end_date=end_date, 
+                                                     usernames=users)
+    done = vertica_query(vertica_conn, done_user_job_details_sql)
+    if len(done) > 0:
+        for row in done:
+            username = row['user_name']
+            user_details[username]['done'] = row
+    else:
+        print("no results from vertica_query for done_user_job_details_sql", 
+              file=stderr)
+        exit(1)
+
+    return user_details
 
 def render_latex(output_file, latex_template_fn, 
                  start_date, end_date, 
-                 top_entry_count, top_n_cpu, 
-                 top_n_mem,
-                 user_data):
+                 top_entry_count, 
+                 top_n_users, 
+                 user_data,
+                 user_details):
     """Render the latex template"""
     latex_tpl = Template(filename=latex_template_fn)
     latex = latex_tpl(start_date=start_date, end_date=end_date, 
-                      top_n_cpu=top_n_cpu, 
-                      top_n_mem=top_n_mem,
                       n=top_entry_count, 
-                      user_data=user_data)
+                      top_n_users=top_n_users, 
+                      user_data=user_data,
+                      user_details=user_details)
     output_file.write(latex)
 
 def main(output="-", top_entry_count=20, 
@@ -224,26 +240,30 @@ def main(output="-", top_entry_count=20,
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
 
-    data = get_vertica_data(vertica_conn, template_dir,
-                            start_date, end_date, 
-                            top_entry_count)
-
+    top_n_users = get_vertica_top_n(vertica_conn, template_dir,
+                                    start_date, end_date, 
+                                    top_entry_count)
+    
     user_data = dict()
-    users = set([row['user_name'] for row in data['mem'] + data['cpu']])
+    users = set(top_n_users['mem'] + top_n_users['cpu'])
     for username in users:
         user_data[username] = get_user_data(username, ldap_url, 
                                             ldap_user_base_dn, 
                                             ldap_filter_username,
                                             portrait_path,
                                             font_path)
-        
+
+    user_details = get_vertica_user_details(vertica_conn, template_dir,
+                                            start_date, end_date,
+                                            users)
+
     render_latex(output_file=output_file,
                  latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 
                  start_date=start_date, end_date=end_date, 
                  top_entry_count=top_entry_count,
-                 top_n_cpu=data['cpu'], 
-                 top_n_mem=data['mem'],
-                 user_data=user_data)
+                 top_n_users=top_n_users,
+                 user_data=user_data,
+                 user_details=user_details)
 
     output_file.close()
 
