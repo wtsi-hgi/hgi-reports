@@ -37,8 +37,13 @@ from argh import dispatch_command
 from logging.config import dictConfig
 from logging import debug, info, warning, error, critical, exception
 import yaml
+from itertools import chain
 
 PALETTE = ['#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3', '#E7298A', '#66A61E', '#E6AB02']
+
+def flatten(listOfLists):
+    "Flatten one level of nesting"
+    return chain.from_iterable(listOfLists)
 
 def get_user_data(username, ldap_url, ldap_user_base_dn, 
                   ldap_filter_username, portrait_path,
@@ -142,14 +147,18 @@ def vertica_query(vertica_conn, sql):
 
 def get_vertica_top_n(vertica_conn, template_dir, 
                       start_date, end_date, top_entry_count,
-                      tpl_type, order_by):
+                      select_tpls, order_by="", desc=False,
+                      agg_where=""):
     """Gets analytics data from vertica"""
-    top_n_sql_tpl = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
+    top_n_sql_tpl = Template(filename=template_dir+"/top_n.sql.tpl")
     top_n_sql = top_n_sql_tpl(project="humgen",
                               cluster="farm3",
+                              select_tpls=select_tpls,
                               start_date=start_date, 
                               end_date=end_date, 
-                              order_by_desc=order_by,
+                              order_by=order_by,
+                              desc=desc,
+                              agg_where=agg_where,
                               limit=top_entry_count)
     top_n = vertica_query(vertica_conn, top_n_sql)
     return [ row['user_name'] for row in top_n ]
@@ -200,6 +209,7 @@ def get_vertica_user_details(vertica_conn, template_dir,
 
 def render_latex(output_file, latex_template_fn, 
                  start_date, end_date, 
+                 sections,
                  top_entry_count, 
                  top_n_users, 
                  user_data,
@@ -207,6 +217,7 @@ def render_latex(output_file, latex_template_fn,
     """Render the latex template"""
     latex_tpl = Template(filename=latex_template_fn)
     latex = latex_tpl(start_date=start_date, end_date=end_date, 
+                      sections=sections,
                       n=top_entry_count, 
                       top_n_users=top_n_users, 
                       user_data=user_data,
@@ -244,44 +255,86 @@ def main(output="-", top_entry_count=6,
     vertica_conn = jdbc_connect(jdbc_driver, 
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
-
-    top_n_users = dict()
-    top_n_users["cpu"] = get_vertica_top_n(vertica_conn, template_dir,
-                                           start_date, end_date, 
-                                           top_entry_count,
-                                           "cpu", "core_wall_time_weeks")
-    top_n_users["mem"] = get_vertica_top_n(vertica_conn, template_dir,
-                                           start_date, end_date, 
-                                           top_entry_count,
-                                           "mem", "mem_req_gb_weeks")
-    top_n_users["cpu_waste"] = get_vertica_top_n(vertica_conn, template_dir,
-                                                 start_date, end_date, 
-                                                 top_entry_count,
-                                                 "cpu", "wasted_core_weeks")
-    top_n_users["mem_waste"] = get_vertica_top_n(vertica_conn, template_dir,
-                                                 start_date, end_date, 
-                                                 top_entry_count,
-                                                 "mem", "wasted_mem_gb_weeks")
-    top_n_users["cpu_eff"] = get_vertica_top_n(vertica_conn, template_dir,
-                                               start_date, end_date, 
-                                               top_entry_count,
-                                               "cpu", "cpu_eff_total")
-    top_n_users["mem_eff"] = get_vertica_top_n(vertica_conn, template_dir,
-                                               start_date, end_date, 
-                                               top_entry_count,
-                                               "mem", "mem_eff_total")
     
+    sections = [
+        {
+            'key': 'cpu_reserved',
+            'title': 'compute reserved',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'core_wall_time_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'cpu_eff',
+            'title': 'most efficient use of compute (over 100\% is too efficient)',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'cpu_eff_total',
+            'desc': True,
+            'agg_where': 'core_wall_time_weeks >= 1',
+            },
+        {
+            'key': 'cpu_waste',
+            'title': 'compute wasted due to inefficiency',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'wasted_core_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'mem_reserved',
+            'title': 'memory reserved',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'mem_req_gb_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'mem_eff',
+            'title': 'most efficient use of memory (over 100\% is too efficient)',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'mem_eff_total',
+            'desc': True,
+            'agg_where': 'mem_req_gb_weeks >= 1',
+            },
+        {
+            'key': 'mem_waste',
+            'title': 'memory wasted due to inefficiency',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'wasted_mem_gb_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        ]
+    
+    top_n_users = dict()
+    for section in sections:
+        info("Querying vertica for section %s" % section)
+        top_n_users[section["key"]] = get_vertica_top_n(vertica_conn, template_dir,
+                                                        start_date, end_date, 
+                                                        top_entry_count,
+                                                        [section["tpl_type"]], 
+                                                        section["order_by"],
+                                                        section["desc"],
+                                                        agg_where=section["agg_where"])
+
     user_data = dict()
-    users = set(top_n_users['mem'] + top_n_users['cpu'] 
-                + top_n_users['mem_waste'] + top_n_users['cpu_waste']
-                + top_n_users['mem_eff'] + top_n_users['cpu_eff'])
+    users = set(flatten([top_n_users[key] for key in [section['key'] for section in sections]]))
     for username in users:
+        info("Getting user data for user %s" % username)
         user_data[username] = get_user_data(username, ldap_url, 
                                             ldap_user_base_dn, 
                                             ldap_filter_username,
                                             portrait_path,
                                             font_path)
 
+    info("Getting user details from vertica for users %s" % users)
     user_details = get_vertica_user_details(vertica_conn, template_dir,
                                             start_date, end_date,
                                             users)
@@ -289,6 +342,7 @@ def main(output="-", top_entry_count=6,
     render_latex(output_file=output_file,
                  latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 
                  start_date=start_date, end_date=end_date, 
+                 sections=sections,
                  top_entry_count=top_entry_count,
                  top_n_users=top_n_users,
                  user_data=user_data,

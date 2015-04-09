@@ -20,6 +20,6 @@ where r.project_name = g.cname
 <!--(end)-->
 group by user_name
 <!--(if exists("limit"))-->
-limit @!limit!@
+limit $!limit!$
 <!--(end)-->
 
