@@ -34,6 +34,9 @@ from jaydebeapi import connect as jdbc_connect
 from jaydebeapi import DBAPITypeObject
 from os import getenv, path
 from argh import dispatch_command
+from logging.config import dictConfig
+from logging import debug, info, warning, error, critical, exception
+import yaml
 
 PALETTE = ['#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3', '#E7298A', '#66A61E', '#E6AB02']
 
@@ -58,9 +61,9 @@ def get_user_data(username, ldap_url, ldap_user_base_dn,
     last_name = data['sn'][0]
     first_name = data['givenName'][0]
     full_name = data['cn'][0]
-    if len(full_name) > 25:
+    if len(full_name) > 22:
         full_name = first_name + " " + last_name
-    if len(full_name) > 25:
+    if len(full_name) > 22:
         full_name = first_name + " " + last_name[0].upper() + "."
 
     jpeg_filename = portrait_path+'/'+username+'.jpg'
@@ -116,9 +119,10 @@ def vertica_query(vertica_conn, sql):
     """Runs a vertica SQL query and returns a list of dicts"""
     curs = vertica_conn.cursor()
     try:
+        debug("Executing SQL query: [%s]" % sql)
         curs.execute(sql)
     except Exception, e:
-        print("Exception running SQL query [%s]: %s" % (sql, e), file=stderr)
+        exception("Exception running SQL query [%s]" % sql)
         exit(1)
     col_names = [t[0] for t in curs.description]
     rows = curs.fetchall()
@@ -137,25 +141,18 @@ def vertica_query(vertica_conn, sql):
         return [ empty ]
 
 def get_vertica_top_n(vertica_conn, template_dir, 
-                      start_date, end_date, top_entry_count):
+                      start_date, end_date, top_entry_count,
+                      tpl_type, order_by):
     """Gets analytics data from vertica"""
-    top_n_users = dict()
-
-    for tpl_type in ["cpu", "mem"]:
-        if tpl_type == "cpu":
-            order_by = "core_wall_time_weeks"
-        else:
-            order_by = "mem_req_gb_weeks"
-        top_n_sql_tpl = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
-        top_n_sql = top_n_sql_tpl(project="humgen",
-                                  cluster="farm3",
-                                  start_date=start_date, 
-                                  end_date=end_date, 
-                                  order_by_desc=order_by,
-                                  limit=top_entry_count)
-        top_n = vertica_query(vertica_conn, top_n_sql)
-        top_n_users[tpl_type] = [ row['user_name'] for row in top_n ]
-    return top_n_users
+    top_n_sql_tpl = Template(filename=template_dir+"/top_n_"+tpl_type+".sql.tpl")
+    top_n_sql = top_n_sql_tpl(project="humgen",
+                              cluster="farm3",
+                              start_date=start_date, 
+                              end_date=end_date, 
+                              order_by_desc=order_by,
+                              limit=top_entry_count)
+    top_n = vertica_query(vertica_conn, top_n_sql)
+    return [ row['user_name'] for row in top_n ]
 
 def get_vertica_user_details(vertica_conn, template_dir, 
                              start_date, end_date, 
@@ -216,7 +213,7 @@ def render_latex(output_file, latex_template_fn,
                       user_details=user_details)
     output_file.write(latex)
 
-def main(output="-", top_entry_count=20, 
+def main(output="-", top_entry_count=6, 
          start_date=seven_days_ago_sql(), end_date=today_sql(), 
          username='', password='', 
          jdbc_driver='com.vertica.Driver', 
@@ -228,9 +225,17 @@ def main(output="-", top_entry_count=20,
          portrait_path='reports/portraits',
          blank_portrait_path='reports/portraits/blank.jpg',
          font_path='fonts/LeagueGothic-CondensedRegular.otf',
-         template_dir=path.dirname(path.realpath(__file__))):
+         template_dir=path.dirname(path.realpath(__file__)),
+         logging_conf=getenv('LOGGING_CONF', '')):
     """Generates report from database via JDBC"""
     
+    if logging_conf != '':
+        with open(logging_conf) as f:
+            d = yaml.load(f)
+        d.setdefault('version', 1)
+        dictConfig(d)
+        info("Logging configured using %s" % logging_conf)
+
     if output == '-':
         output_file = stdout
     else:
@@ -240,12 +245,36 @@ def main(output="-", top_entry_count=20,
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
 
-    top_n_users = get_vertica_top_n(vertica_conn, template_dir,
-                                    start_date, end_date, 
-                                    top_entry_count)
+    top_n_users = dict()
+    top_n_users["cpu"] = get_vertica_top_n(vertica_conn, template_dir,
+                                           start_date, end_date, 
+                                           top_entry_count,
+                                           "cpu", "core_wall_time_weeks")
+    top_n_users["mem"] = get_vertica_top_n(vertica_conn, template_dir,
+                                           start_date, end_date, 
+                                           top_entry_count,
+                                           "mem", "mem_req_gb_weeks")
+    top_n_users["cpu_waste"] = get_vertica_top_n(vertica_conn, template_dir,
+                                                 start_date, end_date, 
+                                                 top_entry_count,
+                                                 "cpu", "wasted_core_weeks")
+    top_n_users["mem_waste"] = get_vertica_top_n(vertica_conn, template_dir,
+                                                 start_date, end_date, 
+                                                 top_entry_count,
+                                                 "mem", "wasted_mem_gb_weeks")
+    top_n_users["cpu_eff"] = get_vertica_top_n(vertica_conn, template_dir,
+                                               start_date, end_date, 
+                                               top_entry_count,
+                                               "cpu", "cpu_eff_total")
+    top_n_users["mem_eff"] = get_vertica_top_n(vertica_conn, template_dir,
+                                               start_date, end_date, 
+                                               top_entry_count,
+                                               "mem", "mem_eff_total")
     
     user_data = dict()
-    users = set(top_n_users['mem'] + top_n_users['cpu'])
+    users = set(top_n_users['mem'] + top_n_users['cpu'] 
+                + top_n_users['mem_waste'] + top_n_users['cpu_waste']
+                + top_n_users['mem_eff'] + top_n_users['cpu_eff'])
     for username in users:
         user_data[username] = get_user_data(username, ldap_url, 
                                             ldap_user_base_dn, 

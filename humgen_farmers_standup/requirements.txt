@@ -8,4 +8,4 @@ mpi4py==1.3
 numpy==1.9.2
 pyratemp==0.3.2
 python-ldap==2.4.19
-wsgiref==0.1.2
+PyYAML==3.11
