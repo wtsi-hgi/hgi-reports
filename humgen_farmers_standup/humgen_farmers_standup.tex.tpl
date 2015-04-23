@@ -1,7 +1,7 @@
-<!--(macro display_se)-->
-  <!--(if default(se))-->#!
-    <!--(if float(default(se)) < float('inf'))-->#!
-$\pm$$! "%.1f" % float(1.96*default(se)) !$#!
+<!--(macro display_sd)-->
+  <!--(if default(sd))-->#!
+    <!--(if float(default(sd)) < float('inf'))-->#!
+$\pm$$! "%.1f" % float(1.96*default(sd)) !$#!
     <!--(end)-->#!
   <!--(end)-->#!
 <!--(end)-->
@@ -41,8 +41,8 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
 & @! default("'%.1f' % float(done['wasted_core_weeks'])", 0) !@#!
 & @! default("'%.1f' % float(done['cpu_eff_total'])", "") !@#!
 & @! default("int(done['num_jobs'])", 0) !@#!
-& @! default("'%.1f' % float(done['n_slots_avg'])", "") !@@!display_se(se="done['n_slots_se']")!@#!
-& @! default("'%.1f' % float(done['run_time_hrs_avg'])", "") !@@!display_se(se="done['run_time_hrs_se']")!@#!
+& @! default("'%.1f' % float(done['n_slots_avg'])", "") !@@!display_sd(sd="done['n_slots_sd']")!@#!
+& @! default("'%.1f' % float(done['run_time_hrs_avg'])", "") !@@!display_sd(sd="done['run_time_hrs_sd']")!@#!
 \\
 %%% USER $!user!$ BOTTOM ROW
 #! empty for multirow photo
@@ -52,8 +52,8 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
 & \textcolor{red}{@! default("'%.1f' % float(failed['wasted_core_weeks'])", 0) !@}#!
 & \textcolor{red}{@! default("'%.1f' % float(failed['cpu_eff_total'])", "") !@}#!
 & \textcolor{red}{@! default("int(failed['num_jobs'])", 0) !@}#!
-& \textcolor{red}{@! default("'%.1f' % float(failed['n_slots_avg'])", "") !@@!display_se(se="failed['n_slots_se']")!@}#!
-& \textcolor{red}{@! default("'%.1f' % float(failed['run_time_hrs_avg'])", "") !@@!display_se(se="failed['run_time_hrs_se']")!@}#!
+& \textcolor{red}{@! default("'%.1f' % float(failed['n_slots_avg'])", "") !@@!display_sd(sd="failed['n_slots_sd']")!@}#!
+& \textcolor{red}{@! default("'%.1f' % float(failed['run_time_hrs_avg'])", "") !@@!display_sd(sd="failed['run_time_hrs_sd']")!@}#!
 \\
     <!--(end)-->#!
 \end{longtable}
@@ -72,9 +72,9 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
 & @! default("'%.1f' % float(done['wasted_mem_gb_weeks'])", 0) !@#!
 & @! default("'%.1f' % float(done['mem_eff_total'])", "") !@#!
 & @! default("int(done['num_jobs'])", 0) !@#!
-& @! default("'%.1f' % float(done['mem_req_gb_avg'])", "") !@@!display_se(se="done['mem_req_gb_se']")!@#!
-& @! default("'%.1f' % float(done['mem_usage_gb_avg'])", "") !@@!display_se(se="done['mem_usage_gb_se']")!@#!
-& @! default("'%.1f' % float(done['run_time_hrs_avg'])", "") !@@!display_se(se="done['run_time_hrs_se']")!@#!
+& @! default("'%.1f' % float(done['mem_req_gb_avg'])", "") !@@!display_sd(sd="done['mem_req_gb_sd']")!@#!
+& @! default("'%.1f' % float(done['mem_usage_gb_avg'])", "") !@@!display_sd(sd="done['mem_usage_gb_sd']")!@#!
+& @! default("'%.1f' % float(done['run_time_hrs_avg'])", "") !@@!display_sd(sd="done['run_time_hrs_sd']")!@#!
 \\
 %%% USER $!user!$ BOTTOM ROW
 #! empty for multirow photo
@@ -84,9 +84,9 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
 & \textcolor{red}{@! default("'%.1f' % float(failed['wasted_mem_gb_weeks'])", 0) !@}#!
 & \textcolor{red}{@! default("'%.1f' % float(failed['mem_eff_total'])", "") !@}#!
 & \textcolor{red}{@! default("int(failed['num_jobs'])", 0) !@}#!
-& \textcolor{red}{@! default("'%.1f' % float(failed['mem_req_gb_avg'])", "") !@@!display_se(se="failed['mem_req_gb_se']")!@}#!
-& \textcolor{red}{@! default("'%.1f' % float(failed['mem_usage_gb_avg'])", "") !@@!display_se(se="failed['mem_usage_gb_se']")!@}#!
-& \textcolor{red}{@! default("'%.1f' % float(failed['run_time_hrs_avg'])", "") !@@!display_se(se="failed['run_time_hrs_se']")!@}#!
+& \textcolor{red}{@! default("'%.1f' % float(failed['mem_req_gb_avg'])", "") !@@!display_sd(sd="failed['mem_req_gb_sd']")!@}#!
+& \textcolor{red}{@! default("'%.1f' % float(failed['mem_usage_gb_avg'])", "") !@@!display_sd(sd="failed['mem_usage_gb_sd']")!@}#!
+& \textcolor{red}{@! default("'%.1f' % float(failed['run_time_hrs_avg'])", "") !@@!display_sd(sd="failed['run_time_hrs_sd']")!@}#!
 \\
     <!--(end)-->#!
 \end{longtable}
