@@ -72,7 +72,7 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
 & @! default("'%.1f' % float(done['wasted_mem_gb_weeks'])", 0) !@#!
 & @! default("'%.1f' % float(done['mem_eff_total'])", "") !@#!
 & @! default("int(done['num_jobs'])", 0) !@#!
-& @! default("'%.1f' % float(done['mem_req_gb_avg'])", "") !@@!display_se(se="mem_req_gb_se")!@#!
+& @! default("'%.1f' % float(done['mem_req_gb_avg'])", "") !@@!display_se(se=done['mem_req_gb_se'])!@#!
 & @! default("'%.1f' % float(done['mem_usage_gb_avg'])", "") !@@!display_se(se="done['mem_usage_gb_se']")!@#!
 & @! default("'%.1f' % float(done['run_time_hrs_avg'])", "") !@@!display_se(se="done['run_time_hrs_se']")!@#!
 \\
