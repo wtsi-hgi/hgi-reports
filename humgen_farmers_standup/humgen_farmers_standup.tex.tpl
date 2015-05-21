@@ -17,7 +17,7 @@ $\pm$$! "%.1f" % float(1.96*default(sd)) !$#!
 \newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
 \newcolumntype{R}[1]{>{\raggedleft\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
 \renewcommand{\arraystretch}{1.2}
-\newcommand{\namewidth}{30mm}
+\newcommand{\namewidth}{29mm}
 \newcommand{\photowidth}{5mm}
 
 \begin{document}
@@ -26,7 +26,7 @@ $\pm$$! "%.1f" % float(1.96*default(sd)) !$#!
 <!--(for section in sections)-->
 \subsection*{Top @!n!@ users - $!section["title"]!$}
   <!--(if section["table_type"] == "cpu")-->
-\begin{longtable}{L{\photowidth} L{\namewidth}|R{14mm} R{14mm} R{14mm} R{14mm} R{9mm} R{17mm} R{17mm}}
+\begin{longtable}{L{\photowidth} L{\namewidth}|R{14mm} R{14mm} R{14mm} R{14mm} R{14mm} R{17mm} R{18mm}}
 & Name & Compute cores reserved (core-weeks) & Compute cores used (core-weeks) & Compute wasted (core-weeks) & Total compute efficiency (\%) & Jobs (\#) & Cores per job & Avg. job wall time (Hours) \\
     <!--(for user in top_n_users[section["key"]])-->#!
 $!setvar("done", "user_details[user]['done']")!$#!
@@ -58,7 +58,7 @@ $!setvar("failed", "user_details[user]['failed']")!$#!
     <!--(end)-->#!
 \end{longtable}
   <!--(elif section["table_type"] == "mem")-->
-\begin{longtable}{L{\photowidth} L{\namewidth}|R{14mm} R{14mm} R{14mm} R{14mm} R{9mm} R{17mm} R{17mm} R{17mm}}
+\begin{longtable}{L{\photowidth} L{\namewidth}|R{14mm} R{14mm} R{14mm} R{14mm} R{14mm} R{17mm} R{17mm} R{18mm}}
 & Name & Memory reserved (GB-weeks) & Memory used (GB-weeks) & Memory wasted (GB-weeks) & Total memory efficiency (\%) & Jobs (\#) & Memory reserved per job (GB) & Memory used per job (GB) & Avg. job wall time (Hours) \\
     <!--(for user in top_n_users[section["key"]])-->#!
 $!setvar("done", "user_details[user]['done']")!$#!
