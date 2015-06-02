@@ -286,6 +286,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var path_data_url_templates = {
 	//"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
+	"/lustre/scratch106": _.template("../api/lustretree/scratch106?depth=2&path=<%= path %>"),
+	"/lustre/scratch107": _.template("../api/lustretree/scratch107?depth=2&path=<%= path %>"),
+	"/lustre/scratch109": _.template("../api/lustretree/scratch109?depth=2&path=<%= path %>"),
+	"/lustre/scratch110": _.template("../api/lustretree/scratch110?depth=2&path=<%= path %>"),
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
@@ -309,6 +313,10 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     function stopLoading() {
 	treemap.loading = false;
 	d3.select("#status").text("");
+    }
+
+    function displayError(error) {
+	d3.select("#error").text(error);
     }
 
     function queueTreemapDataRequests(d) {
@@ -340,26 +348,32 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    http_retries--;
 		    if(http_retries > 0) {
 			console.log("Retrying request for retry_d=", retry_d);
+			displayError("Retrying... ("+http_retries+")");
+			stopLoading();
 			fetchTreemapData(retry_d, treemap, onload_cb);
 		    } else {
 			console.log("No more retries! Giving up.");
 			console.log("Should report this to user TODO!");
 			stopLoading();
+			displayError("Error: no more retries, giving up (please reload)");
 		    }
 		} else if(error.status >= 400 && error.status < 500) {
 		    console.log("Client error ("+error.status+" ", error.statusText,"): ", error.responseText);
 		    console.log("Should print to page TODO!");
 		    stopLoading();
+		    displayError("Error: "+error.statusText);
 		} else if(error.status == 0) {
 		    console.log("CORS error, possibly from shibboleth redirect?");
 		    console.log(error.getAllResponseHeaders());
 		    stopLoading();
+		    displayError("CORS error (please reload)");
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		} else {
 		    console.log("Unexpected error ", error.readyState,  error.response, error.responseText, error.responseType, error.responseXML, error.status, error.statusText, error.timeout, error.withCredentials);
 		    console.log(error.getAllResponseHeaders());
 		    stopLoading();
+		    displayError("Unexpected error (please reload)");
 		    //TODO fix reload to take us back where we were
 		    window.location.reload();
 		}
@@ -385,7 +399,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			console.log("Error invoking onload_cb ", onload_cb);
 			console.log("error was ", result.name, ": ", result.message, "(", result.fileName, " line ", result.lineNumber, ")");
 		    }
-		    
+		    // clear error message
+//		    displayError("");
 		} else {
 		    console.log("queue completed but data missing. have data=", data);
 		}
