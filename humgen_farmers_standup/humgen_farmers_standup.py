@@ -1,130 +1,354 @@
-import sys
-import datetime
-import subprocess
-import pyratemp
+#!/usr/bin/env python
+################################################################################
+# Copyright (c) 2014, 2015 Genome Research Ltd.
+#
+# Author: Emyr James <ej4@sanger.ac.uk>
+# Author: Joshua C. Randall <jcrandall@alum.mit.edu>
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 3 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+"""Generate humgen farmers' stand-up report (LaTeX)"""
+
+from __future__ import print_function
+from sys import exit, stdout, stderr
+from datetime import datetime, timedelta
 import ldap
+from pyratemp import Template
+from wand.image import Image
+from wand.color import Color
+from wand.font import Font
+from hashlib import md5
+from jaydebeapi import connect as jdbc_connect
+from jaydebeapi import DBAPITypeObject
+from os import getenv, path
+from argh import dispatch_command
+from logging.config import dictConfig
+from logging import debug, info, warning, error, critical, exception
+import yaml
+from itertools import chain
 
-import numpy as np
-import wand.image
-# generate a weekly farm stats report for farmer's standup
-# calls out to java/jdbc program to run some queries
-# generates some graphs using matplotlib
-# puts the graphs together with some latex templates
-# runs latex to create the pdf
+PALETTE = ['#A6761D', '#666666', '#1B9E77', '#D95F02', '#7570B3', '#E7298A', '#66A61E', '#E6AB02']
 
-# read the blank jpg
-blank=open('portraits/blank.jpg','rb').read()
+def flatten(listOfLists):
+    "Flatten one level of nesting"
+    return chain.from_iterable(listOfLists)
 
-# get info from ldap
-def get_user_data(uid) :
-	con = ldap.initialize('ldap://nissrv3.internal.sanger.ac.uk/')	
-	con.set_option(ldap.OPT_X_TLS_DEMAND, True)
-	results=con.search_s('dc=sanger,dc=ac,dc=uk',ldap.SCOPE_SUBTREE,'(uid='+uid+')')
-	if len(results) != 1 :
-		return None
-	data=results[0][1]
-	full_name=data['cn'][0]
-	if 'jpegPhoto' in data :
-		jpeg=data['jpegPhoto'][0]
-	else :
-		jpeg=blank
-	return (full_name,crop(jpeg))
+def get_user_data(username, ldap_url, ldap_user_base_dn, 
+                  ldap_filter_username, portrait_path,
+                  font_path):
+    """Get user data from LDAP and stores portrait to disk
+    
+    Arguments:
+    username -- the username for which to get data
+    
+    Returns: a dict of user data including a path to a cropped photo 
+    """
+    con = ldap.initialize(ldap_url)
+    con.set_option(ldap.OPT_X_TLS_DEMAND, True)
+    results = con.search_s(ldap_user_base_dn,
+                           ldap.SCOPE_SUBTREE, 
+                           ldap_filter_username % username)
+    if len(results) != 1:
+        return None
+    data = results[0][1]
+    last_name = data['sn'][0]
+    first_name = data['givenName'][0]
+    full_name = data['cn'][0]
+    if len(full_name) > 22:
+        full_name = first_name + " " + last_name
+    if len(full_name) > 22:
+        full_name = first_name + " " + last_name[0].upper() + "."
 
-# crop an image if it has the non-standard size
-def crop(jpeg) :
-	img=wand.image.Image(blob=jpeg)
-	if img.height != 177 :
-		img.crop(0,0,134,177)
-	return img.make_blob()
+    jpeg_filename = portrait_path+'/'+username+'.jpg'
+    if 'jpegPhoto' in data:
+        jpeg = data['jpegPhoto'][0]
+        open(jpeg_filename, 'wb').write(crop(jpeg))
+    else:
+        caption = username[0].upper()
+        font = Font(path=font_path, 
+                    size=120, 
+                    color=Color('white'))
+        color_index = int(md5(username).hexdigest()[0], 16) % len(PALETTE)
+        with Image(background=Color(PALETTE[color_index]),
+                   width=128, 
+                   height=171) as image:
+            image.caption(caption, 
+                          left=8,
+                          top=8, 
+                          width=128, 
+                          height=171, 
+                          font=font,
+                          gravity='center')
+            image.save(filename=jpeg_filename)
+    return dict(full_name=full_name, jpeg_filename=jpeg_filename)
 
-# get sql style date string for 7 days ago
-def seven_days_ago() :
-	now=datetime.datetime.now()
-	week=datetime.timedelta(weeks=1)
-	now=now-week
-	return '%04d-%02d-%02d' % (now.year, now.month, now.day)
+def crop(jpeg, width=128, height=171):
+    """Returns a cropped version of an image"""
+    img = Image(blob=jpeg)
+    img.crop(left=3, top=3, width=width, height=height)
+    return img.make_blob()
 
-# top N users by cpu
-# removes ones with crazy efficiency
-N=20
-top_N_sql="""
-	select
-		user_name as user_name,
-		sum(cpu_time)/(60*60*24*7) as core_weeks,
-		100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_min,
-		100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_max,
-		100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as cpu_time_avg,
-        100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as cpu_time_stddev,
-		count(*) as num_jobs,
-		avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as run_time_avg
-	from rpt_jobmart_raw as r, isg_work_area_groups as g
-	where r.project_name=g.cname
-	and pname='humgen'
-	and finish_time_gmt >='%s'
-	and cluster_name='farm3'
-	and finish_time_gmt > start_time_gmt
-	and run_time > 0
-	and nprocs > 0
-	and ncores >0
-	and cpu_time/run_time < 1024
-	and cpu_time > 0
-    and job_exit_status='DONE'
-	group by user_name
-	order by 2 desc
-	limit %s
-"""
-failed_by_user="""
-    select
-        user_name as user_name,
-        sum(cpu_time)/(60*60*24*7) as failed_core_weeks,
-        100.0*min(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_min,
-        100.0*max(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_max,
-        100.0*sum(cpu_time)/sum(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))) as failed_cpu_time_avg,
-        100.0*stddev(cpu_time/(ncores*(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt)))) as failed_cpu_time_stddev,
-        count(*) as failed_num_jobs,
-        avg(extract(epoch from finish_time_gmt)-extract(epoch from start_time_gmt))/3600 as failed_run_time_avg
-    from rpt_jobmart_raw as r, isg_work_area_groups as g
-    where r.project_name=g.cname
-    and pname='humgen'
-    and finish_time_gmt >='%s'
-    and cluster_name='farm3'
-    and finish_time_gmt > start_time_gmt
-    and run_time > 0
-    and nprocs > 0
-    and ncores >0
-    and cpu_time/run_time < 1024
-    and cpu_time > 0
-    and job_exit_status='EXIT'
-    and user_name='%s'
-    group by user_name
-"""
+def today_sql():
+    """Returns a SQL date string for today's date"""
+    now = datetime.now()
+    return '%04d-%02d-%02d' % (now.year, now.month, now.day)
+    
+def seven_days_ago_sql():
+    """Returns a SQL date string for 7 days ago"""
+    now = datetime.now()
+    week = timedelta(weeks=1)
+    now = now - week
+    return '%04d-%02d-%02d' % (now.year, now.month, now.day)
 
-top_N_sql=top_N_sql % (seven_days_ago(),N)
-p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
-topN=eval(p.communicate(input=top_N_sql)[0])
-for row in topN :
-    uid=row['user_name']
-    fname,jpeg=get_user_data(uid)
-    row['fname']=fname
-    jpeg_filename='portraits/'+uid+'.jpg'
-    open(jpeg_filename,'wb').write(jpeg)
-    row['jpeg_filename']=jpeg_filename
-    failed_by_user_sql=failed_by_user % (seven_days_ago(),uid)
-    p=subprocess.Popen(['java','-cp','.:vertica.jar','VerticaPython'],shell=False, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
-    failed=eval(p.communicate(input=failed_by_user_sql)[0])
-    if len(failed) > 0 :
-        row.update(failed[0])
-    else :
-        tmp={
-            'failed_core_weeks' : 0.0,
-            'failed_cpu_time_avg' : 0.0,
-            'failed_cpu_time_stddev' : 0.0,
-            'failed_num_jobs' : 0,
-            'failed_run_time_avg' : 0.0            
-        }
-        row.update(tmp)
+def jpype_to_py(col):
+    """Convert jpype types to python"""
+    if hasattr(col, 'value'):
+        return col.value
+    else:
+        return col 
 
-# render the latex template
-tpl=pyratemp.Template(filename='humgen_farmers_standup_template.tex')
-latex=tpl(date=seven_days_ago(), topN=topN, N=N)
-print latex
+# run a vertica query
+def vertica_query(vertica_conn, sql):
+    """Runs a vertica SQL query and returns a list of dicts"""
+    curs = vertica_conn.cursor()
+    try:
+        debug("Executing SQL query: [%s]" % sql)
+        curs.execute(sql)
+    except Exception, e:
+        exception("Exception running SQL query [%s]" % sql)
+        exit(1)
+    col_names = [t[0] for t in curs.description]
+    rows = curs.fetchall()
+    if len(rows) > 0:
+        return [dict(list(zip(col_names, 
+                              [jpype_to_py(col) for col in row]))) for row in rows]
+    else:
+        # no results, prepare an empty set
+        empty = dict()
+        for i, col_name in enumerate(col_names):
+            col_type = curs.description[i][1]
+            if col_type == 'DECIMAL' or col_type == 'FLOAT':
+                empty[col_name] = 0.0
+            elif col_type == 'INTEGER':
+                empty[col_name] = 0
+        return [ empty ]
+
+def get_vertica_top_n(vertica_conn, template_dir, 
+                      start_date, end_date, top_entry_count,
+                      select_tpls, order_by="", desc=False,
+                      agg_where=""):
+    """Gets analytics data from vertica"""
+    top_n_sql_tpl = Template(filename=template_dir+"/top_n.sql.tpl")
+    top_n_sql = top_n_sql_tpl(project="humgen",
+                              cluster="farm3",
+                              select_tpls=select_tpls,
+                              start_date=start_date, 
+                              end_date=end_date, 
+                              order_by=order_by,
+                              desc=desc,
+                              agg_where=agg_where,
+                              limit=top_entry_count)
+    top_n = vertica_query(vertica_conn, top_n_sql)
+    return [ row['user_name'] for row in top_n ]
+
+def get_vertica_user_details(vertica_conn, template_dir, 
+                             start_date, end_date, 
+                             users):
+    user_details = dict()
+    for user in users:
+        user_details[user] = dict()
+        user_details[user]['done'] = {}
+        user_details[user]['failed'] = {}
+
+    user_job_details_tpl = Template(filename=template_dir+"/user_job_details.sql.tpl")
+    failed_user_job_details_sql = user_job_details_tpl(project="humgen",
+                                                       cluster="farm3",
+                                                       sql_conds=["job_exit_status = 'EXIT' AND NOT REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                                       start_date=start_date, 
+                                                       end_date=end_date, 
+                                                       usernames=users)
+    failed = vertica_query(vertica_conn, failed_user_job_details_sql)
+    if len(failed) > 0:
+        for row in failed:
+            username = row['user_name']
+            user_details[username]['failed'] = row
+    else:
+        print("no results from vertica_query for failed_user_job_details_sql", 
+              file=stderr)
+        exit(1)
+
+    done_user_job_details_sql = user_job_details_tpl(project="humgen",
+                                                     cluster="farm3",
+                                                     sql_conds=["job_exit_status = 'DONE' OR REGEXP_LIKE(job_cmd, '^[[:space:]]*cr[_]')"],
+                                                     start_date=start_date, 
+                                                     end_date=end_date, 
+                                                     usernames=users)
+    done = vertica_query(vertica_conn, done_user_job_details_sql)
+    if len(done) > 0:
+        for row in done:
+            username = row['user_name']
+            user_details[username]['done'] = row
+    else:
+        print("no results from vertica_query for done_user_job_details_sql", 
+              file=stderr)
+        exit(1)
+
+    return user_details
+
+def render_latex(output_file, latex_template_fn, 
+                 start_date, end_date, 
+                 sections,
+                 top_entry_count, 
+                 top_n_users, 
+                 user_data,
+                 user_details):
+    """Render the latex template"""
+    latex_tpl = Template(filename=latex_template_fn)
+    latex = latex_tpl(start_date=start_date, end_date=end_date, 
+                      sections=sections,
+                      n=top_entry_count, 
+                      top_n_users=top_n_users, 
+                      user_data=user_data,
+                      user_details=user_details)
+    output_file.write(latex)
+
+def main(output="-", top_entry_count=6, 
+         start_date=seven_days_ago_sql(), end_date=today_sql(), 
+         username='', password='', 
+         jdbc_driver='com.vertica.Driver', 
+         jdbc_url='jdbc:vertica://localhost:5433/analytics', 
+         jdbc_classpath=getenv('CLASSPATH', '.'),
+         ldap_url=getenv('LDAP_URL','ldap://ldap/'),
+         ldap_user_base_dn='',
+         ldap_filter_username='(uid=%s)',
+         portrait_path='reports/portraits',
+         blank_portrait_path='reports/portraits/blank.jpg',
+         font_path='fonts/LeagueGothic-CondensedRegular.otf',
+         template_dir=path.dirname(path.realpath(__file__)),
+         logging_conf=getenv('LOGGING_CONF', '')):
+    """Generates report from database via JDBC"""
+    
+    if logging_conf != '':
+        with open(logging_conf) as f:
+            d = yaml.load(f)
+        d.setdefault('version', 1)
+        dictConfig(d)
+        info("Logging configured using %s" % logging_conf)
+
+    if output == '-':
+        output_file = stdout
+    else:
+        output_file = open(output, 'w')
+
+    vertica_conn = jdbc_connect(jdbc_driver, 
+                                [jdbc_url, username, password], 
+                                jdbc_classpath)
+    
+    sections = [
+        {
+            'key': 'cpu_reserved',
+            'title': 'compute reserved',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'core_wall_time_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'cpu_eff',
+            'title': 'most efficient use of compute (over 100\% is too efficient)',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'cpu_eff_total',
+            'desc': True,
+            'agg_where': 'core_wall_time_weeks >= 1',
+            },
+        {
+            'key': 'cpu_waste',
+            'title': 'compute wasted due to inefficiency',
+            'tpl_type': 'cpu',
+            'table_type': 'cpu',
+            'order_by': 'wasted_core_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'mem_reserved',
+            'title': 'memory reserved',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'mem_req_gb_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        {
+            'key': 'mem_eff',
+            'title': 'most efficient use of memory (over 100\% is too efficient)',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'mem_eff_total',
+            'desc': True,
+            'agg_where': 'mem_req_gb_weeks >= 1',
+            },
+        {
+            'key': 'mem_waste',
+            'title': 'memory wasted due to inefficiency',
+            'tpl_type': 'mem',
+            'table_type': 'mem',
+            'order_by': 'wasted_mem_gb_weeks',
+            'desc': True,
+            'agg_where': '',
+            },
+        ]
+    
+    top_n_users = dict()
+    for section in sections:
+        info("Querying vertica for section %s" % section)
+        top_n_users[section["key"]] = get_vertica_top_n(vertica_conn, template_dir,
+                                                        start_date, end_date, 
+                                                        top_entry_count,
+                                                        [section["tpl_type"]], 
+                                                        section["order_by"],
+                                                        section["desc"],
+                                                        agg_where=section["agg_where"])
+
+    user_data = dict()
+    users = set(flatten([top_n_users[key] for key in [section['key'] for section in sections]]))
+    for username in users:
+        info("Getting user data for user %s" % username)
+        user_data[username] = get_user_data(username, ldap_url, 
+                                            ldap_user_base_dn, 
+                                            ldap_filter_username,
+                                            portrait_path,
+                                            font_path)
+
+    info("Getting user details from vertica for users %s" % users)
+    user_details = get_vertica_user_details(vertica_conn, template_dir,
+                                            start_date, end_date,
+                                            users)
+
+    render_latex(output_file=output_file,
+                 latex_template_fn=template_dir+'/humgen_farmers_standup.tex.tpl', 
+                 start_date=start_date, end_date=end_date, 
+                 sections=sections,
+                 top_entry_count=top_entry_count,
+                 top_n_users=top_n_users,
+                 user_data=user_data,
+                 user_details=user_details)
+
+    output_file.close()
+
+if __name__ == "__main__":
+    dispatch_command(main)
