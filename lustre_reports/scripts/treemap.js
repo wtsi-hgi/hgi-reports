@@ -293,6 +293,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
+	"/lustre/scratch115": _.template("../api/lustretree/scratch115?depth=2&path=<%= path %>"),
+	"/lustre/scratch116": _.template("../api/lustretree/scratch116?depth=2&path=<%= path %>"),
+	"/warehouse/team113_wh0": _.template("../api/lustretree/team113_wh0?depth=2&path=<%= path %>"),
     }
 
     function startLoading() {
@@ -381,10 +384,20 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		http_retries = HTTP_RETRY_COUNT;
 		if(_.every(data, _.isObject) && data.length >= 1) {
 		    if (_.isEmpty(treemap.root)) {
-			var d = _(data).shift();
-			console.log("treemap.root is empty: ", treemap.root, "setting to d:", d);
-			treemap.root = d;
-			treemap.loaded_paths.push(d.path);
+			var root = {
+			    name: "",
+			    path: "/",
+			    child_dirs: new Array(),
+			    data: {
+				atime: { '*': {'*': {'*': 0}}},
+				ctime: { '*': {'*': {'*': 0}}},
+				mtime: { '*': {'*': {'*': 0}}},
+				count: { '*': {'*': {'*': 0}}},
+				size: { '*': {'*': {'*': 0}}}
+			    }
+			};
+			console.log("treemap.root is empty: ", treemap.root, "creating root node: ", root);
+			treemap.root = root;
 		    }
 		    _.forEach(data, function(d) {
 			console.log("merging d into treemap.root. d=", d);
@@ -422,18 +435,19 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     }
     
     var http_retries = HTTP_RETRY_COUNT;
-    fetchTreemapData({path: "/lustre"}, treemap, initialDataLoad);
+    fetchTreemapData({path: "/"}, treemap, initialDataLoad);
 
     function mergeLustreTree(x, y) {
 	var merged = x;
-	//console.log("mergeLustreTree: merging y.path=", y.path, " into merged.path=", merged.path);
+	console.log("mergeLustreTree: merging y.path=", y.path, " into merged.path=", merged.path, " merged=", merged);
 	var subtree = merged;
 	while (subtree.path != y.path) {
 	    var child_dirs = subtree.child_dirs;
 	    subtree = _.find(child_dirs, function(child) {return ((y.path == child.path) || _.startsWith(y.path, child.path+"/"));});
 	    
 	    if (_.isUndefined(subtree)) {
-		console.log("mergeLustreTree: ERROR cannot find subtree for merge - are trees disjoint? (y=", y, " x=", x, " child_dirs=", child_dirs);
+		console.log("mergeLustreTree: cannot find subtree for merge - trees must be disjoint, adding child at at root node (y=", y, " x=", x, " child_dirs=", child_dirs);
+		merged.child_dirs.push(y);
 		return merged;
 	    }
 	}
@@ -611,7 +625,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 //	d3.select("#size_metric_"+sizeMetric).attr("selected",1);
 	//d3.select("#fill_"+fillKey).attr("selected",1);
 	
-	initialize(treemap.root);
+	initialize_treemap_root(treemap.root);
 	layout(treemap.root);
 
 	// set size and color options
@@ -725,7 +739,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	return _.keys(d.data[filters.metric][filters.group][filters.user]).sort();
     }
 
-    function initialize(root) {
+    function initialize_treemap_root(root) {
 	root.x = root.y = 0;
 	root.dx = width;
 	root.dy = height;
