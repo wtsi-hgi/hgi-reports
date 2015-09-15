@@ -286,8 +286,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var path_data_url_templates = {
 	//"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
-	"/lustre/scratch106": _.template("../api/lustretree/scratch106?depth=2&path=<%= path %>"),
-	"/lustre/scratch107": _.template("../api/lustretree/scratch107?depth=2&path=<%= path %>"),
 	"/lustre/scratch109": _.template("../api/lustretree/scratch109?depth=2&path=<%= path %>"),
 	"/lustre/scratch110": _.template("../api/lustretree/scratch110?depth=2&path=<%= path %>"),
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
