@@ -131,6 +131,7 @@ def vertica_query(vertica_conn, sql):
         exit(1)
     col_names = [t[0] for t in curs.description]
     rows = curs.fetchall()
+    debug("Got %d rows" % len(rows))
     if len(rows) > 0:
         return [dict(list(zip(col_names, 
                               [jpype_to_py(col) for col in row]))) for row in rows]
