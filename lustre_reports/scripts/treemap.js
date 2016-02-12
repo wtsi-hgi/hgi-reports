@@ -293,8 +293,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
 	"/lustre/scratch115": _.template("../api/lustretree/scratch115?depth=2&path=<%= path %>"),
-	"/lustre/scratch116": _.template("../api/lustretree/scratch116?depth=2&path=<%= path %>"),
-	"/warehouse/team113_wh0": _.template("../api/lustretree/team113_wh0?depth=2&path=<%= path %>"),
+	"/lustre/scratch116": _.template("../api/lustretree/scratch116?depth=2&path=<%= path %>")
     }
 
     function startLoading() {
