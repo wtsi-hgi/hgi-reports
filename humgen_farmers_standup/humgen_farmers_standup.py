@@ -256,7 +256,22 @@ def main(output="-", top_entry_count=6,
     vertica_conn = jdbc_connect(jdbc_driver, 
                                 [jdbc_url, username, password], 
                                 jdbc_classpath)
-    
+
+    # sanity check - does farm3 have any jobs in vertica during the period?
+    total_farm3_jobs = vertica_query(vertica_conn, 
+                                     """
+                                     select count(*) as num_jobs
+                                     from rpt_jobmart_raw
+                                     where finish_time_gmt >= '%s'
+                                     and finish_time_gmt <= '%s'
+                                     and cluster_name = 'farm3'
+                                     """ % (start_date, end_date))[0]['num_jobs']
+    if total_farm3_jobs <= 0:
+        exception("farm3 cluster had NO jobs during period from %s to %s - ask service desk to fix data collectors!" % (start_date, end_date))
+        exit(1)
+
+    info("farm3 cluster had %s total jobs during the period %s to %s" % (total_farm3_jobs, start_date, end_date))
+
     sections = [
         {
             'key': 'cpu_reserved',
