@@ -290,6 +290,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	"/lustre/scratch109": _.template("../api/lustretree/scratch109?depth=2&path=<%= path %>"),
 	"/lustre/scratch110": _.template("../api/lustretree/scratch110?depth=2&path=<%= path %>"),
 	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
+	"/lustre/scratch112": _.template("../api/lustretree/scratch112?depth=2&path=<%= path %>"),
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
 	"/lustre/scratch115": _.template("../api/lustretree/scratch115?depth=2&path=<%= path %>"),
