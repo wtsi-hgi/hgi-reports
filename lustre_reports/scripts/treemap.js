@@ -286,15 +286,15 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var path_data_url_templates = {
 	//"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
-	"/lustre/scratch108": _.template("../api/lustretree/scratch108?depth=2&path=<%= path %>"),
-	"/lustre/scratch109": _.template("../api/lustretree/scratch109?depth=2&path=<%= path %>"),
-	"/lustre/scratch110": _.template("../api/lustretree/scratch110?depth=2&path=<%= path %>"),
-	"/lustre/scratch111": _.template("../api/lustretree/scratch111?depth=2&path=<%= path %>"),
-	"/lustre/scratch112": _.template("../api/lustretree/scratch112?depth=2&path=<%= path %>"),
-	"/lustre/scratch113": _.template("../api/lustretree/scratch113?depth=2&path=<%= path %>"),
-	"/lustre/scratch114": _.template("../api/lustretree/scratch114?depth=2&path=<%= path %>"),
-	"/lustre/scratch115": _.template("../api/lustretree/scratch115?depth=2&path=<%= path %>"),
-	"/lustre/scratch116": _.template("../api/lustretree/scratch116?depth=2&path=<%= path %>")
+	"/lustre/scratch108": _.template("../api/lustretree/scratch108/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch109": _.template("../api/lustretree/scratch109/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch110": _.template("../api/lustretree/scratch110/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch111": _.template("../api/lustretree/scratch111/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch112": _.template("../api/lustretree/scratch112/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch113": _.template("../api/lustretree/scratch113/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch114": _.template("../api/lustretree/scratch114/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch115": _.template("../api/lustretree/scratch115/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch116": _.template("../api/lustretree/scratch116/v2?depth=2&path=<%= path %>")
     }
 
     function startLoading() {
@@ -383,7 +383,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		}
 	    } else { // successful result
 		http_retries = HTTP_RETRY_COUNT;
-		if(_.every(data, _.isObject) && data.length >= 1) {
+		console.log("retrieved data dated ", data.date);
+		if(_.every(data.tree, _.isObject) && data.length >= 1) {
 		    if (_.isEmpty(treemap.root)) {
 			var root = {
 			    name: "",
@@ -400,7 +401,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			console.log("treemap.root is empty: ", treemap.root, "creating root node: ", root);
 			treemap.root = root;
 		    }
-		    _.forEach(data, function(d) {
+		    _.forEach(data.tree, function(d) {
 			console.log("merging d into treemap.root. d=", d);
 			mergeLustreTree(treemap.root, d);
 			treemap.loaded_paths.push(d.path);
@@ -416,7 +417,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		    // clear error message
 //		    displayError("");
 		} else {
-		    console.log("queue completed but data missing. have data=", data);
+		    console.log("queue completed but data.tree missing. have data.tree=", data.tree);
 		}
 	    }
 	    stopLoading();
