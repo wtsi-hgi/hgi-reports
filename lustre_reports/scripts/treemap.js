@@ -8,6 +8,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
     var HTTP_RETRY_COUNT = 5;
 
     var _root = new Object();
+    var dates = new Array();
     var treemap = {
 	get root() {
 	    return _root;
@@ -136,6 +137,15 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	    value = -1;
 	}
 	return value;
+    }
+
+    function addDate(date) {
+	var tmp_dates = dates
+	dates = _.union(dates, [date])
+	if (!_.isEqual(tmp_dates, dates)) {
+	    console.log("dates updated to ", dates)
+	    d3.select("#dates").text(dates.join());
+	}
     }
 
     function displayMetric(metric) {
@@ -383,8 +393,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		}
 	    } else { // successful result
 		http_retries = HTTP_RETRY_COUNT;
-		console.log("retrieved data dated ", data.date);
-		if(_.every(data.tree, _.isObject) && data.length >= 1) {
+		if(_.every(data, _.isObject) && data.length >= 1) {
 		    if (_.isEmpty(treemap.root)) {
 			var root = {
 			    name: "",
@@ -401,10 +410,11 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 			console.log("treemap.root is empty: ", treemap.root, "creating root node: ", root);
 			treemap.root = root;
 		    }
-		    _.forEach(data.tree, function(d) {
-			console.log("merging d into treemap.root. d=", d);
-			mergeLustreTree(treemap.root, d);
-			treemap.loaded_paths.push(d.path);
+		    _.forEach(data, function(d) {
+			console.log("merging d dated ", d.date," into treemap.root. d.tree=", d.tree);
+			addDate(d.date);
+			mergeLustreTree(treemap.root, d.tree);
+			treemap.loaded_paths.push(d.tree.path);
 		    });
 		    
 		    //initialDataLoad();
@@ -626,7 +636,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	// set selected property on default option
 //	d3.select("#size_metric_"+sizeMetric).attr("selected",1);
 	//d3.select("#fill_"+fillKey).attr("selected",1);
-	
 	initialize_treemap_root(treemap.root);
 	layout(treemap.root);
 
@@ -860,8 +869,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		}
 		if(_.size(child.child_dirs) > 0) {
 		    fetchTreemapData(child, treemap, function() {
-			console.log("new data loaded for child=", child);
-			layout(child);
+			console.log("new data loaded for child.tree=", child.tree, " dated ", child.date);
+			layout(child.tree);
 		    });
 		    
 		    // regenerate color scale based on new layout
