@@ -869,8 +869,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 		}
 		if(_.size(child.child_dirs) > 0) {
 		    fetchTreemapData(child, treemap, function() {
-			console.log("new data loaded for child.tree=", child.tree, " dated ", child.date);
-			layout(child.tree);
+			console.log("new data loaded for child=", child);
+			layout(child);
 		    });
 		    
 		    // regenerate color scale based on new layout
