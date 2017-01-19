@@ -304,7 +304,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 	"/lustre/scratch113": _.template("../api/lustretree/scratch113/v2?depth=2&path=<%= path %>"),
 	"/lustre/scratch114": _.template("../api/lustretree/scratch114/v2?depth=2&path=<%= path %>"),
 	"/lustre/scratch115": _.template("../api/lustretree/scratch115/v2?depth=2&path=<%= path %>"),
-	"/lustre/scratch116": _.template("../api/lustretree/scratch116/v2?depth=2&path=<%= path %>")
+	"/lustre/scratch116": _.template("../api/lustretree/scratch116/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch117": _.template("../api/lustretree/scratch117/v2?depth=2&path=<%= path %>"),
+	"/lustre/scratch118": _.template("../api/lustretree/scratch118/v2?depth=2&path=<%= path %>")
     }
 
     function startLoading() {
