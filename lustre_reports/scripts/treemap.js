@@ -313,6 +313,35 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
         "/lustre/scratch118": _.template("../api/lustretree/scratch118/v2?depth=2&path=<%= path %>")
     };
 
+    function reloadButIgnoreScratchesThatCannotBeLoaded(retry_d, treemap, onload_cb) {
+        failed = [];
+        complete = 0;
+
+        function createCallback(key, onComplete) {
+            return function(error) {
+                if(error) {
+                    failed.push(key)
+                }
+                complete++;
+                if(complete == _.size(path_data_url_templates)) {
+                    onComplete(failed);
+                }
+            }
+        }
+        function onComplete(failed) {
+            _.forEach(failed, function(value) {
+                delete path_data_url_templates[value]
+            });
+            displayError("No data loaded for: " + failed.join(", "));
+            fetchTreemapData(retry_d, treemap, onload_cb);
+        }
+
+        _.forEach(path_data_url_templates, function(value, key) {
+            url = path_data_url_templates[key](retry_d);
+            d3.json(url).get(createCallback(key, onComplete));
+        });
+    }
+
     function startLoading() {
         if(!treemap.loading) {
             treemap.loading = true;
@@ -359,6 +388,18 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
             error = _(arguments).shift();
             data = arguments;
             if(error) {
+                function allowAttemptToIgnoreFailures() {
+                    function wrap() {
+                        reloadButIgnoreScratchesThatCannotBeLoaded(retry_d, treemap, onload_cb)
+                    }
+                    // Touching the DOM directly - old school! No jQuery, although perhaps d3 could do this
+                    document.getElementById("error").appendChild(document.createElement("br"));
+                    button = document.createElement("button");
+                    button.innerHTML = "Attempt to ignore load failures";
+                    button.addEventListener("click", wrap);
+                    document.getElementById("error").appendChild(button);
+                }
+
                 if(error.status == 401) {
                     console.log("Client unauthorized (" + error.status + " ", error.statusText, "): ", error.responseText);
                     console.log("Should handle authorization TODO!");
@@ -376,12 +417,14 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
                         console.log("Should report this to user TODO!");
                         stopLoading();
                         displayError("Error: no more retries, giving up (please reload)");
+                        allowAttemptToIgnoreFailures();
                     }
                 } else if(error.status >= 400 && error.status < 500) {
                     console.log("Client error (" + error.status + " ", error.statusText, "): ", error.responseText);
                     console.log("Should print to page TODO!");
                     stopLoading();
                     displayError("Error: " + error.statusText);
+                    allowAttemptToIgnoreFailures();
                 } else if(error.status == 0) {
                     console.log("CORS error, possibly from shibboleth redirect?");
                     console.log(error.getAllResponseHeaders());
