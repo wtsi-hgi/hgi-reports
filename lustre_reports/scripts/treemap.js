@@ -388,7 +388,6 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
                     stopLoading();
                     displayError("CORS error (please reload)");
                     //TODO fix reload to take us back where we were
-                    window.location.reload();
                 } else {
                     console.log("Unexpected error ", error.readyState, error.response, error.responseText, error.responseType, error.responseXML, error.status, error.statusText, error.timeout, error.withCredentials);
                     console.log(error.getAllResponseHeaders());
