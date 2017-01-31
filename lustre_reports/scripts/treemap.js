@@ -390,6 +390,8 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
             if(error) {
                 function allowAttemptToIgnoreFailures() {
                     function wrap() {
+                        displayError("");
+                        stopLoading();
                         reloadButIgnoreScratchesThatCannotBeLoaded(retry_d, treemap, onload_cb)
                     }
                     // Touching the DOM directly - old school! No jQuery, although perhaps d3 could do this
