@@ -390,7 +390,7 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
             if(error) {
                 function allowAttemptToIgnoreFailures() {
                     function wrap() {
-                        displayError("");
+                        displayError("Detecting working scratch data sources...");
                         stopLoading();
                         reloadButIgnoreScratchesThatCannotBeLoaded(retry_d, treemap, onload_cb)
                     }
