@@ -300,13 +300,9 @@ define(["d3", "lodash", "queue"], function(d3, _, queue) {
 
     var path_data_url_templates = {
         //"/lustre": _.template("../api/lustretree/test?depth=2&path=<%= path %>"),
-        "/lustre/scratch112": _.template("../api/lustretree/scratch112/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch113": _.template("../api/lustretree/scratch113/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch114": _.template("../api/lustretree/scratch114/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch115": _.template("../api/lustretree/scratch115/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch116": _.template("../api/lustretree/scratch116/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch117": _.template("../api/lustretree/scratch117/v2?depth=2&path=<%= path %>"),
-        "/lustre/scratch118": _.template("../api/lustretree/scratch118/v2?depth=2&path=<%= path %>")
+        //"/lustre/scratch112": _.template("../api/lustretree/scratch112/v2?depth=2&path=<%= path %>"),
+        //"/lustre/scratch113": _.template("../api/lustretree/scratch113/v2?depth=2&path=<%= path %>"),
+        "/lustre/": _.template("../api/v2?depth=1&path=<%= path %>"),
     };
 
     function reloadButIgnoreScratchesThatCannotBeLoaded(retry_d, treemap, onload_cb) {
